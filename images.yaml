@@ -1,0 +1,17 @@
+# The images built from this repository: name in Harbor (registry.gpu.services.dhbw.cloud/platform/<name>), directory with the Dockerfile, build arguments. Read by aiaas-deployment (ansible/tasks/image-refs.yaml) at the release tag it pins.
+notebook-cpu:
+  dockerfile: notebook
+  args:
+    BASE: quay.io/jupyter/scipy-notebook:hub-5.5.1
+    # Without the CUDA libraries (the plain package pulls in nvidia-nccl, about 200 MB).
+    XGBOOST: xgboost-cpu
+notebook-pytorch:
+  dockerfile: notebook
+  args:
+    BASE: quay.io/jupyter/pytorch-notebook:cuda12-hub-5.5.1
+    XGBOOST: xgboost
+notebook-tensorflow:
+  dockerfile: notebook
+  args:
+    BASE: quay.io/jupyter/tensorflow-notebook:cuda-hub-5.5.1
+    XGBOOST: xgboost
