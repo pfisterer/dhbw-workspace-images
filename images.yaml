@@ -15,3 +15,9 @@ notebook-tensorflow:
   args:
     BASE: quay.io/jupyter/tensorflow-notebook:cuda-hub-5.5.1
     XGBOOST: xgboost
+# Base of course images for "CPU + GPU-Kernel": the PyTorch image plus the GPU kernel machinery, for the notebook and the GPU kernel alike. Built after notebook-pytorch (stage 2, "platform:" names another image of this file).
+notebook-base:
+  dockerfile: base
+  stage: 2
+  args:
+    BASE: platform:notebook-pytorch

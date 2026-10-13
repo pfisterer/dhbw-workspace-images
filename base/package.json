@@ -1,0 +1,26 @@
+{
+  "name": "dhbw-gpu-status",
+  "version": "0.3.0",
+  "description": "DHBW GPU platform: shows waiting and running GPU kernels in the top bar and as notifications, with a button to stop waiting.",
+  "license": "BSD-3-Clause",
+  "main": "lib/index.js",
+  "files": ["lib/"],
+  "scripts": {
+    "build": "tsc && jupyter labextension build ."
+  },
+  "dependencies": {
+    "@jupyterlab/application": "^4.0.0",
+    "@jupyterlab/apputils": "^4.0.0",
+    "@jupyterlab/coreutils": "^6.0.0",
+    "@jupyterlab/services": "^7.0.0",
+    "@lumino/widgets": "^2.0.0"
+  },
+  "devDependencies": {
+    "@jupyterlab/builder": "^4.0.0",
+    "typescript": "~5.5.0"
+  },
+  "jupyterlab": {
+    "extension": true,
+    "outputDir": "labextension"
+  }
+}

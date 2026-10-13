@@ -7,6 +7,7 @@ Die Basis-Images der DHBW-Workspaces (JupyterHub auf dem GPU-Cluster der DHBW): 
 | `registry.gpu.services.dhbw.cloud/platform/notebook-cpu` | `quay.io/jupyter/scipy-notebook` | Python mit NumPy, pandas, scikit-learn, ohne GPU |
 | `registry.gpu.services.dhbw.cloud/platform/notebook-pytorch` | `quay.io/jupyter/pytorch-notebook` (CUDA 12) | PyTorch auf der GPU |
 | `registry.gpu.services.dhbw.cloud/platform/notebook-tensorflow` | `quay.io/jupyter/tensorflow-notebook` (CUDA) | TensorFlow und Keras auf der GPU |
+| `registry.gpu.services.dhbw.cloud/platform/notebook-base` | `notebook-pytorch` | Notebook auf der CPU mit GPU-Kernel; Basis für Kursimages |
 
 ## Eigene Umgebung darauf aufbauen
 
@@ -17,12 +18,24 @@ FROM registry.gpu.services.dhbw.cloud/platform/notebook-pytorch:v1.0.0
 RUN pip install --no-cache-dir transformers
 ```
 
+## Kursimage für „CPU + GPU-Kernel“
+
+Im Profil „CPU + GPU-Kernel“ läuft das Notebook auf einem CPU-Knoten, der Kernel „Python 3 (GPU)“ startet bei Bedarf als eigener Pod auf einem GPU-Knoten. Ein Projekt kann dafür ein eigenes Kursimage eintragen (Self-Service, Projekt bearbeiten, Reiter „Workspaces“). Es muss von `notebook-base` abgeleitet sein, dann läuft dasselbe Image für Notebook, Terminal, VS Code, den CPU- und den GPU-Kernel:
+
+```dockerfile
+FROM registry.gpu.services.dhbw.cloud/platform/notebook-base:v1.1.0
+RUN pip install --no-cache-dir transformers datasets
+```
+
+Geprüft wird das beim Speichern am Label `cloud.dhbw.base`, das `notebook-base` setzt und abgeleitete Images erben. Das Image muss öffentlich abrufbar sein (z. B. auf ghcr.io oder aus einem Build in Harbor `envs/`), läuft als Benutzer 1000 ohne root-Rechte und hat auf der GPU 3 GB Speicher.
+
 Was sich zwischen den Versionen ändert, steht in [CHANGELOG.md](CHANGELOG.md).
 
 ## Aufbau
 
 - `images.yaml` – die Images: Name in Harbor, Verzeichnis mit dem Dockerfile, Build-Argumente.
 - `notebook/Dockerfile` – ein Dockerfile für alle drei Varianten; `BASE` wählt das Jupyter-Image, `XGBOOST` das passende Paket.
+- `base/` – `notebook-base`: Kernel-Spec „Python 3 (GPU)“ mit gateway_provisioners, Pod-Vorlage des GPU-Kernels, Server-Erweiterung `dhbw_gpu` und JupyterLab-Erweiterung `dhbw-gpu-status`.
 
 ## Release
 
