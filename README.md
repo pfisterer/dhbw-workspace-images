@@ -7,7 +7,7 @@ Die Basis-Images der DHBW-Workspaces (JupyterHub auf dem GPU-Cluster der DHBW): 
 | `registry.gpu.services.dhbw.cloud/platform/notebook-cpu` | `quay.io/jupyter/scipy-notebook` | Python mit NumPy, pandas, scikit-learn, ohne GPU |
 | `registry.gpu.services.dhbw.cloud/platform/notebook-pytorch` | `quay.io/jupyter/pytorch-notebook` (CUDA 12) | PyTorch auf der GPU |
 | `registry.gpu.services.dhbw.cloud/platform/notebook-tensorflow` | `quay.io/jupyter/tensorflow-notebook` (CUDA) | TensorFlow und Keras auf der GPU |
-| `registry.gpu.services.dhbw.cloud/platform/notebook-base` | `notebook-pytorch` | Notebook auf der CPU mit GPU-Kernel; Basis für Kursimages |
+| `registry.gpu.services.dhbw.cloud/platform/notebook-base` | `notebook-pytorch` | Notebook auf der CPU mit GPU-Kernel; Basis für Projekt-Images |
 
 ## Eigene Umgebung darauf aufbauen
 
