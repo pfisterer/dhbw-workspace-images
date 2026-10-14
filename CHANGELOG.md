@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.0 – 2026-10-14
+
+- Drei Basen statt `notebook-base`: `base-python`, `base-pytorch` (Standard) und `base-tensorflow`, aus einem Dockerfile. Sie sind die Umgebungen der Projekte für alle Server-Arten.
+- `DHBW_KERNELS` (cpu, split, gpu) statt `DHBW_LOCAL_GPU`: welche Kernel ein Server anbietet.
+- `notebook-base` gibt es nicht mehr; Images darauf (Label `notebook-v1`) laufen weiter.
+
 ## v1.2.0 – 2026-10-14
 
 - `notebook-base` als ganzer GPU-Server (Profil „Projekt-Image (GPU)“, `DHBW_LOCAL_GPU=1`): Der lokale Kernel heißt dann „Python 3 (GPU)“, der Kernel-Pod-Eintrag entfällt (JupyterLab und VS Code).

@@ -4,10 +4,11 @@ Die Basis-Images der DHBW-Workspaces (JupyterHub auf dem GPU-Cluster der DHBW): 
 
 | Image | Basis | Wofür |
 | --- | --- | --- |
-| `registry.gpu.services.dhbw.cloud/platform/notebook-cpu` | `quay.io/jupyter/scipy-notebook` | Python mit NumPy, pandas, scikit-learn, ohne GPU |
-| `registry.gpu.services.dhbw.cloud/platform/notebook-pytorch` | `quay.io/jupyter/pytorch-notebook` (CUDA 12) | PyTorch auf der GPU |
-| `registry.gpu.services.dhbw.cloud/platform/notebook-tensorflow` | `quay.io/jupyter/tensorflow-notebook` (CUDA) | TensorFlow und Keras auf der GPU |
-| `registry.gpu.services.dhbw.cloud/platform/notebook-base` | `notebook-pytorch` | Notebook auf der CPU mit GPU-Kernel; Basis für Projekt-Images |
+| `registry.gpu.services.dhbw.cloud/platform/base-python` | `notebook-cpu` (scipy) | Python mit NumPy, pandas, scikit-learn, ohne GPU-Bibliotheken |
+| `registry.gpu.services.dhbw.cloud/platform/base-pytorch` | `notebook-pytorch` (CUDA 12) | PyTorch, Standard |
+| `registry.gpu.services.dhbw.cloud/platform/base-tensorflow` | `notebook-tensorflow` (CUDA) | TensorFlow und Keras |
+
+Die Basen sind die Umgebungen der Projekte: Jedes Projekt wählt im Self-Service eine Basis, optional mit Paketen aus einem Git-Repository darauf gebaut, oder ein vorhandenes Image. Alle Server-Arten des Projekts – „CPU“, „CPU + GPU-Kernel“ (Notebook auf der CPU, GPU-Kernel als eigener Pod) und „GPU“ – laufen mit dieser Umgebung. Die Basen bauen auf den Notebook-Images `notebook-cpu`, `notebook-pytorch` und `notebook-tensorflow` auf (Jupyter Docker Stacks mit VS Code, nbgitpuller, jupyterlab-git, XGBoost) und bringen dazu den GPU-Kernel, die DHBW-Erweiterungen und das Label `cloud.dhbw.base` mit.
 
 ## Eigene Umgebung darauf aufbauen
 
@@ -18,18 +19,18 @@ FROM registry.gpu.services.dhbw.cloud/platform/notebook-pytorch:v1.0.0
 RUN pip install --no-cache-dir transformers
 ```
 
-## Projekt-Image für „CPU + GPU-Kernel“ und „Projekt-Image (GPU)“
+## Eigene Umgebung darauf aufbauen
 
-Im Profil „CPU + GPU-Kernel“ läuft das Notebook auf einem CPU-Knoten, der Kernel „Python 3 (GPU)“ startet bei Bedarf als eigener Pod auf einem GPU-Knoten; „Projekt-Image (GPU)“ ist dasselbe Image als ganzer Server auf der GPU. Ein Projekt kann dafür ein eigenes Projekt-Image festlegen (Self-Service, Projekt bearbeiten, Reiter „Workspaces“), aus Git gebaut oder als fertiges Image. Ein fertiges Image muss von `notebook-base` abgeleitet sein, dann läuft dasselbe Image für Notebook, Terminal, VS Code, den CPU- und den GPU-Kernel:
+Am einfachsten am Projekt „Basis + Git“ wählen und ein öffentliches Repository angeben. Gebaut wird wie bei Binder aus `requirements.txt`, `environment.yml`, `apt.txt` und `postBuild` (im Hauptverzeichnis, `binder/` oder `.binder/`) auf der gewählten Basis. Erscheint eine neue Version der Basis, wird von selbst neu gebaut; das Repository landet beim Start als Kursmaterial unter `~/projekte`.
+
+Ein eigenes Image auf einer Basis, jede Version ist ein Git-Tag und in Harbor ein Tag gleichen Namens, der nicht aufgeräumt wird:
 
 ```dockerfile
-FROM registry.gpu.services.dhbw.cloud/platform/notebook-base:v1.2.0
+FROM registry.gpu.services.dhbw.cloud/platform/base-pytorch:v2.0.0
 RUN pip install --no-cache-dir transformers datasets
 ```
 
-Einfacher geht es ohne Dockerfile: Am Projekt „Aus Git bauen“ wählen und ein öffentliches Repository angeben. Gebaut wird wie bei Binder aus `requirements.txt`, `environment.yml`, `apt.txt` und `postBuild` (im Hauptverzeichnis, `binder/` oder `.binder/`), aber auf `notebook-base`. Erscheint eine neue Version von `notebook-base`, wird das Projekt-Image von selbst neu gebaut; das Repository landet beim Start als Kursmaterial unter `~/projekte`.
-
-Geprüft wird beim Speichern am Label `cloud.dhbw.base`, das `notebook-base` setzt und abgeleitete Images erben. Das Image muss öffentlich abrufbar sein (z. B. auf ghcr.io oder aus einem Build in Harbor `envs/`), läuft als Benutzer 1000 ohne root-Rechte und hat auf der GPU 3 GB Speicher.
+Am Projekt als „Vorhandenes Image“ eintragen. Beim Speichern wird das Label `cloud.dhbw.base` nachgesehen: Mit ihm läuft das Image mit allem; ein beliebiges anderes Image (es braucht `jupyterhub-singleuser`) läuft so, wie es ist, ohne „CPU + GPU-Kernel“. Das Image muss öffentlich abrufbar sein und läuft als Benutzer 1000 ohne root-Rechte; auf der GPU gibt es 3 GB Speicher.
 
 Was sich zwischen den Versionen ändert, steht in [CHANGELOG.md](CHANGELOG.md).
 
@@ -37,7 +38,7 @@ Was sich zwischen den Versionen ändert, steht in [CHANGELOG.md](CHANGELOG.md).
 
 - `images.yaml` – die Images: Name in Harbor, Verzeichnis mit dem Dockerfile, Build-Argumente.
 - `notebook/Dockerfile` – ein Dockerfile für alle drei Varianten; `BASE` wählt das Jupyter-Image, `XGBOOST` das passende Paket.
-- `base/` – `notebook-base`: Kernel-Spec „Python 3 (GPU)“ mit gateway_provisioners, Pod-Vorlage des GPU-Kernels, Server-Erweiterung `dhbw_gpu` und JupyterLab-Erweiterung `dhbw-gpu-status`.
+- `base/` – die Basen (`VARIANT` python, pytorch, tensorflow): Kernel-Spec „Python 3 (GPU)“ mit gateway_provisioners, Pod-Vorlage des GPU-Kernels, Start-Hook `dhbw-kernels.sh` (welche Kernel ein Server anbietet), Server-Erweiterung `dhbw_gpu` und JupyterLab-Erweiterung `dhbw-gpu-status`.
 
 ## Release
 

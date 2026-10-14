@@ -15,9 +15,25 @@ notebook-tensorflow:
   args:
     BASE: quay.io/jupyter/tensorflow-notebook:cuda-hub-5.5.1
     XGBOOST: xgboost
-# Base of course images for "CPU + GPU-Kernel": the PyTorch image plus the GPU kernel machinery, for the notebook and the GPU kernel alike. Built after notebook-pytorch (stage 2, "platform:" names another image of this file).
-notebook-base:
+# The bases of the projects' environments (base/Dockerfile): the notebook image plus the GPU kernel machinery and the label cloud.dhbw.base, for every profile. Built after the notebook images (stage 2, "platform:" names another image of this file). "base" is what the self-service offers (name, the default); a project chooses one, optionally adds packages from Git on it, or names a finished image derived from one.
+base-python:
   dockerfile: base
   stage: 2
+  base: {name: "Python (ohne GPU-Bibliotheken)"}
+  args:
+    BASE: platform:notebook-cpu
+    VARIANT: python
+base-pytorch:
+  dockerfile: base
+  stage: 2
+  base: {name: "PyTorch", default: true}
   args:
     BASE: platform:notebook-pytorch
+    VARIANT: pytorch
+base-tensorflow:
+  dockerfile: base
+  stage: 2
+  base: {name: "TensorFlow / Keras"}
+  args:
+    BASE: platform:notebook-tensorflow
+    VARIANT: tensorflow

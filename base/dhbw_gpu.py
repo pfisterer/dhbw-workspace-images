@@ -159,8 +159,8 @@ async def _session_labels(serverapp):
 class StatusHandler(APIHandler):
     @web.authenticated
     async def get(self):
-        if os.environ.get("DHBW_LOCAL_GPU") == "1":
-            # The server has the GPU itself: no kernel pods to report.
+        if os.environ.get("DHBW_KERNELS", "split") != "split":
+            # Only the local kernel (profiles "CPU" and "GPU"): no kernel pods to report.
             self.finish(json.dumps({"limit": 0, "idle_timeout": 0, "kernels": []}))
             return
         labels = await _session_labels(self.serverapp)
