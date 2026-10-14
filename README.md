@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir transformers
 Im Profil „CPU + GPU-Kernel“ läuft das Notebook auf einem CPU-Knoten, der Kernel „Python 3 (GPU)“ startet bei Bedarf als eigener Pod auf einem GPU-Knoten. Ein Projekt kann dafür ein eigenes Kursimage eintragen (Self-Service, Projekt bearbeiten, Reiter „Workspaces“). Es muss von `notebook-base` abgeleitet sein, dann läuft dasselbe Image für Notebook, Terminal, VS Code, den CPU- und den GPU-Kernel:
 
 ```dockerfile
-FROM registry.gpu.services.dhbw.cloud/platform/notebook-base:v1.1.0
+FROM registry.gpu.services.dhbw.cloud/platform/notebook-base:v1.1.1
 RUN pip install --no-cache-dir transformers datasets
 ```
 

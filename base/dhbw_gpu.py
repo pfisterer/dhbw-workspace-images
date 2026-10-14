@@ -1,6 +1,7 @@
 """DHBW GPU kernels (aiaas-deployment docs/bauplan.md): jupyter_server extension in the notebook image of the profile "CPU + GPU-Kernel".
 
 - Starts remote GPU kernels in the notebook's directory (jupyter_server passes it as cwd; gateway_provisioners only mirrors KERNEL_WORKING_DIR).
+- One session per notebook while its kernel starts (_patch_sessions).
 - Quota check before a GPU kernel starts: at most DHBW_GPU_KERNEL_LIMIT GPUs per person, GPU kernels and GPU servers (running or waiting) together, set by JupyterHub from its GpuQuotaSource (the hub checks the same when a GPU server starts). Over the limit the start fails at once with an explanation instead of waiting. This is a courtesy check inside the person's own pod; enforcing the quota belongs to whatever creates the kernel pods (later gpu-management-api).
 - GET <base>/dhbw-gpu/status: state of the person's GPU kernels from Kubernetes and Kueue (waiting with position in the queue and the latest time a GPU frees up, being prepared, running), for the JupyterLab extension dhbw-gpu-status.
 - POST <base>/dhbw-gpu/cancel/<kernel_id>: stop waiting (deletes the kernel pod; the start then fails).
@@ -225,12 +226,35 @@ def _patch_provisioner(serverapp):
     KubernetesProvisioner.get_container_status = get_container_status
 
 
+def _patch_sessions(serverapp):
+    """One session per notebook, also while its kernel starts. jupyter_server records a session only once its kernel is up, so a second request for the same notebook in the meantime (JupyterLab restoring its tabs, a second browser tab) starts a second kernel. Locally that window is a fraction of a second; for a GPU kernel it is the whole pod start, and the second kernel is refused by the quota above, leaving the notebook without a kernel. Requests for the same path now wait for the first and get its session."""
+    manager = type(serverapp.session_manager)
+    original = manager.create_session
+    locks = {}
+
+    async def create_session(self, path=None, *args, **kwargs):
+        if not path:
+            return await original(self, path, *args, **kwargs)
+        lock = locks.setdefault(path, asyncio.Lock())
+        try:
+            async with lock:
+                if await self.session_exists(path=path):
+                    return await self.get_session(path=path)
+                return await original(self, path, *args, **kwargs)
+        finally:
+            if not lock.locked() and locks.get(path) is lock:
+                del locks[path]
+
+    manager.create_session = create_session
+
+
 def _jupyter_server_extension_points():
     return [{"module": "dhbw_gpu"}]
 
 
 def _load_jupyter_server_extension(serverapp):
     _patch_provisioner(serverapp)
+    _patch_sessions(serverapp)
     base = serverapp.web_app.settings["base_url"]
     serverapp.web_app.add_handlers(".*$", [
         (url_path_join(base, "dhbw-gpu", "status"), StatusHandler),
