@@ -18,16 +18,16 @@ FROM registry.gpu.services.dhbw.cloud/platform/notebook-pytorch:v1.0.0
 RUN pip install --no-cache-dir transformers
 ```
 
-## Kursimage für „CPU + GPU-Kernel“
+## Projekt-Image für „CPU + GPU-Kernel“ und „Projekt-Image (GPU)“
 
-Im Profil „CPU + GPU-Kernel“ läuft das Notebook auf einem CPU-Knoten, der Kernel „Python 3 (GPU)“ startet bei Bedarf als eigener Pod auf einem GPU-Knoten. Ein Projekt kann dafür ein eigenes Kursimage eintragen (Self-Service, Projekt bearbeiten, Reiter „Workspaces“). Es muss von `notebook-base` abgeleitet sein, dann läuft dasselbe Image für Notebook, Terminal, VS Code, den CPU- und den GPU-Kernel:
+Im Profil „CPU + GPU-Kernel“ läuft das Notebook auf einem CPU-Knoten, der Kernel „Python 3 (GPU)“ startet bei Bedarf als eigener Pod auf einem GPU-Knoten; „Projekt-Image (GPU)“ ist dasselbe Image als ganzer Server auf der GPU. Ein Projekt kann dafür ein eigenes Projekt-Image festlegen (Self-Service, Projekt bearbeiten, Reiter „Workspaces“), aus Git gebaut oder als fertiges Image. Ein fertiges Image muss von `notebook-base` abgeleitet sein, dann läuft dasselbe Image für Notebook, Terminal, VS Code, den CPU- und den GPU-Kernel:
 
 ```dockerfile
-FROM registry.gpu.services.dhbw.cloud/platform/notebook-base:v1.1.1
+FROM registry.gpu.services.dhbw.cloud/platform/notebook-base:v1.2.0
 RUN pip install --no-cache-dir transformers datasets
 ```
 
-Einfacher geht es ohne Dockerfile: Im Self-Service unter Workspaces → Umgebungen ein Git-Repository mit „Als Kursimage bauen“ hinzufügen. Gebaut wird wie bei Binder aus `requirements.txt`, `environment.yml`, `apt.txt` und `postBuild` (im Hauptverzeichnis, `binder/` oder `.binder/`), aber auf `notebook-base`. Erscheint eine neue Version von `notebook-base`, wird ein solches Kursimage von selbst neu gebaut und in den Projekten ersetzt; das Repository landet beim Start als Kursmaterial unter `~/projekte`.
+Einfacher geht es ohne Dockerfile: Am Projekt „Aus Git bauen“ wählen und ein öffentliches Repository angeben. Gebaut wird wie bei Binder aus `requirements.txt`, `environment.yml`, `apt.txt` und `postBuild` (im Hauptverzeichnis, `binder/` oder `.binder/`), aber auf `notebook-base`. Erscheint eine neue Version von `notebook-base`, wird das Projekt-Image von selbst neu gebaut; das Repository landet beim Start als Kursmaterial unter `~/projekte`.
 
 Geprüft wird beim Speichern am Label `cloud.dhbw.base`, das `notebook-base` setzt und abgeleitete Images erben. Das Image muss öffentlich abrufbar sein (z. B. auf ghcr.io oder aus einem Build in Harbor `envs/`), läuft als Benutzer 1000 ohne root-Rechte und hat auf der GPU 3 GB Speicher.
 

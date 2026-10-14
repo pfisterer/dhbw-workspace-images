@@ -24,6 +24,7 @@ COPY dhbw_gpu.json /etc/jupyter/jupyter_server_config.d/dhbw_gpu.json
 COPY kernel-pod.yaml.j2 /tmp/kernel-pod.yaml.j2
 COPY dhbw_kernel_launch.py /tmp/dhbw_kernel_launch.py
 COPY ipython_kernel_config.py /etc/ipython/ipython_kernel_config.py
+COPY dhbw-local-gpu.sh /usr/local/bin/before-notebook.d/20-dhbw-local-gpu.sh
 # Kernel side: the launcher the kernel pod runs (bootstrap-kernel.sh, launch_ipykernel.py); image-bootstrap copies the script without the execute bit.
 # Notebook side: kernel spec in the environment; our pod template replaces the default one; its entry point is dhbw_kernel_launch.py, which hands over to launch_kubernetes.py when the Jupyter server starts the kernel and is a proxy to the server when VS Code starts the spec on its own (--connection-file, only filled by VS Code); image name and launch timeout are removed from the spec so that GP_IMAGE_NAME and GP_LAUNCH_TIMEOUT (set by JupyterHub) decide; the spec's 30 s are too short when a kernel waits for a GPU. The local kernel is named "Python 3 (CPU)" next to it instead of "Python 3 (ipykernel)".
 RUN jupyter image-bootstrap install --languages=Python \
@@ -35,5 +36,6 @@ RUN jupyter image-bootstrap install --languages=Python \
  && mv /tmp/dhbw_kernel_launch.py "${K}/scripts/dhbw_kernel_launch.py" \
  && python -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); c=d['metadata']['kernel_provisioner']['config']; [c.pop(k, None) for k in ('image_name', 'executor_image_name', 'launch_timeout')]; d['argv'][1]=d['argv'][1].replace('launch_kubernetes.py', 'dhbw_kernel_launch.py'); d['argv'] += ['--connection-file', '{connection_file}']; json.dump(d, open(p, 'w'), indent=2)" "${K}/kernel.json" \
  && python -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['display_name']='Python 3 (CPU)'; json.dump(d, open(p, 'w'), indent=1)" "${CONDA_DIR}/share/jupyter/kernels/python3/kernel.json" \
+ && chmod 0755 /usr/local/bin/before-notebook.d/20-dhbw-local-gpu.sh \
  && fix-permissions "${CONDA_DIR}"
 USER ${NB_UID}

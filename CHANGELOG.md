@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.0 – 2026-10-14
+
+- `notebook-base` als ganzer GPU-Server (Profil „Projekt-Image (GPU)“, `DHBW_LOCAL_GPU=1`): Der lokale Kernel heißt dann „Python 3 (GPU)“, der Kernel-Pod-Eintrag entfällt (JupyterLab und VS Code).
+- Kursimages heißen jetzt Projekt-Images: am Projekt im Self-Service, aus Git gebaut oder als fertiges Image.
+
 ## v1.1.1 – 2026-10-14
 
 - `notebook-base`: Kommen zwei Anfragen für dasselbe Notebook, während sein Kernel noch startet (z. B. JupyterLab stellt seine Tabs wieder her), startet nur ein Kernel. Vorher startete ein zweiter GPU-Kernel, den die Kontingent-Prüfung ablehnte, und das Notebook blieb ohne Kernel.

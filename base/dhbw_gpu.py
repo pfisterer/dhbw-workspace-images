@@ -159,6 +159,10 @@ async def _session_labels(serverapp):
 class StatusHandler(APIHandler):
     @web.authenticated
     async def get(self):
+        if os.environ.get("DHBW_LOCAL_GPU") == "1":
+            # The server has the GPU itself: no kernel pods to report.
+            self.finish(json.dumps({"limit": 0, "idle_timeout": 0, "kernels": []}))
+            return
         labels = await _session_labels(self.serverapp)
         kernels = await asyncio.get_running_loop().run_in_executor(None, collect_status, labels)
         # idle_timeout: after how many seconds without execution a kernel is ended (MappingKernelManager.cull_idle_timeout) — the status bar counts down to it.
