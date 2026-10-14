@@ -27,7 +27,9 @@ FROM registry.gpu.services.dhbw.cloud/platform/notebook-base:v1.1.0
 RUN pip install --no-cache-dir transformers datasets
 ```
 
-Geprüft wird das beim Speichern am Label `cloud.dhbw.base`, das `notebook-base` setzt und abgeleitete Images erben. Das Image muss öffentlich abrufbar sein (z. B. auf ghcr.io oder aus einem Build in Harbor `envs/`), läuft als Benutzer 1000 ohne root-Rechte und hat auf der GPU 3 GB Speicher.
+Einfacher geht es ohne Dockerfile: Im Self-Service unter Workspaces → Umgebungen ein Git-Repository mit „Als Kursimage bauen“ hinzufügen. Gebaut wird wie bei Binder aus `requirements.txt`, `environment.yml`, `apt.txt` und `postBuild` (im Hauptverzeichnis, `binder/` oder `.binder/`), aber auf `notebook-base`. Erscheint eine neue Version von `notebook-base`, wird ein solches Kursimage von selbst neu gebaut und in den Projekten ersetzt; das Repository landet beim Start als Kursmaterial unter `~/projekte`.
+
+Geprüft wird beim Speichern am Label `cloud.dhbw.base`, das `notebook-base` setzt und abgeleitete Images erben. Das Image muss öffentlich abrufbar sein (z. B. auf ghcr.io oder aus einem Build in Harbor `envs/`), läuft als Benutzer 1000 ohne root-Rechte und hat auf der GPU 3 GB Speicher.
 
 Was sich zwischen den Versionen ändert, steht in [CHANGELOG.md](CHANGELOG.md).
 
