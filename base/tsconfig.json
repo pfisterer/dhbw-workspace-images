@@ -3,7 +3,7 @@
     "outDir": "lib",
     "rootDir": "src",
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "target": "ES2018",
     "lib": ["ES2018", "DOM", "DOM.Iterable"],
     "strict": true,

@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.2.0 – 2026-10-14
+
+- GPU-Kernel: Neben dem GPU-Status in der Leiste steht „Jetzt freigeben“; der Knopf beendet die GPU-Kernel sofort, ohne Rückfrage, und gibt die GPU frei. Ein Klick auf den Text fragt wie bisher nach.
+- Die Quelle der JupyterLab-Erweiterung liegt in `base/src`, `tsconfig.json` mit `moduleResolution: bundler`.
+
 ## v2.1.0 – 2026-10-14
 
 - GPU-Kernel: Den Kernel-Pod legt der KI-Dienst an, nicht mehr der Notebook-Server. Der Server braucht dafür keine Rechte in Kubernetes mehr; der Kernel-Pod bekommt Image und Home des Servers und nur noch die nötigen Umgebungsvariablen. Das Pod-Template `kernel-pod.yaml.j2` entfällt.

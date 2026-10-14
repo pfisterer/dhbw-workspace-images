@@ -1,4 +1,4 @@
-// DHBW GPU platform: makes GPU kernels visible. Polls the server extension dhbw_gpu (<base>/dhbw-gpu/status) every 5 s; a waiting or starting GPU kernel gets a notification with its position in the queue and a button to stop waiting. While a GPU kernel holds the GPU, the top bar shows a pulsing red dot with the time until an idle kernel is ended; a click ends it (after asking), which frees the GPU at once. A start refused by the quota is reported by JupyterLab itself (error dialog with the server's message).
+// DHBW GPU platform: makes GPU kernels visible. Polls the server extension dhbw_gpu (<base>/dhbw-gpu/status) every 5 s; a waiting or starting GPU kernel gets a notification with its position in the queue and a button to stop waiting. While a GPU kernel holds the GPU, the top bar shows a pulsing red dot with the time until an idle kernel is ended and a button „Jetzt freigeben“ that ends it without asking, which frees the GPU at once; a click on the text ends it after asking. A start refused by the quota is reported by JupyterLab itself (error dialog with the server's message).
 import { JupyterFrontEnd, JupyterFrontEndPlugin } from '@jupyterlab/application';
 import { Dialog, Notification, showDialog } from '@jupyterlab/apputils';
 import { URLExt } from '@jupyterlab/coreutils';
@@ -23,6 +23,8 @@ const STYLE = `
 .dhbw-gpu-dot { width: 8px; height: 8px; border-radius: 50%; background: #CF2C29; animation: dhbw-gpu-pulse 1.4s ease-in-out infinite; }
 .dhbw-gpu-dot.dhbw-gpu-waiting { background: #E8A33A; }
 .dhbw-gpu-item:hover .dhbw-gpu-label { text-decoration: underline; }
+.dhbw-gpu-release { margin-left: 6px; padding: 0 8px; height: 20px; border: 1px solid #CF2C29; border-radius: 3px; background: transparent; color: #CF2C29; font-size: var(--jp-ui-font-size0); cursor: pointer; }
+.dhbw-gpu-release:hover { background: #CF2C29; color: #fff; }
 @keyframes dhbw-gpu-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(207, 44, 41, 0.6); } 50% { opacity: 0.55; box-shadow: 0 0 0 4px rgba(207, 44, 41, 0); } }
 `;
 
@@ -145,6 +147,19 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
       item.node.appendChild(dot);
       item.node.appendChild(label);
+      if (running.length) {
+        // Ends the GPU kernels at once, without asking: whoever presses it knows what it does.
+        const release = document.createElement('button');
+        release.className = 'dhbw-gpu-release';
+        release.textContent = 'Jetzt freigeben';
+        release.title = 'GPU-Kernel sofort beenden und die GPU freigeben (Variablen gehen verloren, Dateien bleiben).';
+        release.addEventListener('click', event => {
+          event.stopPropagation();
+          release.disabled = true;
+          void Promise.all(running.map(k => app.serviceManager.kernels.shutdown(k.kernel_id).catch(() => undefined))).then(() => poll());
+        });
+        item.node.appendChild(release);
+      }
     };
 
     // A click ends what the dot stands for: the running GPU kernels (after asking), or the wait for one.

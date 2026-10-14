@@ -5,7 +5,7 @@ ARG BASE
 FROM ${BASE} AS labext
 RUN mamba install --yes --quiet nodejs=22 && mkdir -p /tmp/ext/src
 COPY --chown=${NB_UID}:${NB_GID} package.json tsconfig.json /tmp/ext/
-COPY --chown=${NB_UID}:${NB_GID} index.ts /tmp/ext/src/index.ts
+COPY --chown=${NB_UID}:${NB_GID} src/index.ts /tmp/ext/src/index.ts
 WORKDIR /tmp/ext
 # node_modules instead of Yarn Plug'n'Play, so that tsc finds the packages (as in the JupyterLab extension template).
 RUN echo 'nodeLinker: node-modules' > .yarnrc.yml && jlpm install && jlpm build

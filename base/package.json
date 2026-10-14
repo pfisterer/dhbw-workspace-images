@@ -1,6 +1,6 @@
 {
   "name": "dhbw-gpu-status",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "DHBW GPU platform: shows waiting and running GPU kernels in the top bar and as notifications, with a button to stop waiting.",
   "license": "BSD-3-Clause",
   "main": "lib/index.js",
