@@ -1,42 +1,30 @@
-"""DHBW GPU kernels (aiaas-deployment docs/bauplan.md): jupyter_server extension in the notebook image of the profile "CPU + GPU-Kernel".
+"""DHBW GPU kernels (aiaas-deployment docs/bauplan.md 6.2): jupyter_server extension in the bases, active in the profile "CPU + GPU-Kernel".
 
-- Starts remote GPU kernels in the notebook's directory (jupyter_server passes it as cwd; gateway_provisioners only mirrors KERNEL_WORKING_DIR).
+- The kernel pods are created by the AI service (llm-management-api), not by this server: gateway_provisioners' KubernetesProvisioner asks it to start, poll and stop the kernel (DHBW_GPU_API, authenticated with this server's own hub token). The server has no rights in Kubernetes; the AI service builds the pod from this server's pod (image, home, project) and checks the project's limits and budgets (one GPU per person and the like) before it starts one. A refusal comes back as the reason JupyterLab shows.
+- Starts remote GPU kernels in the notebook's directory (jupyter_server passes it as cwd).
 - One session per notebook while its kernel starts (_patch_sessions).
-- Quota check before a GPU kernel starts: at most DHBW_GPU_KERNEL_LIMIT GPUs per person, GPU kernels and GPU servers (running or waiting) together, set by JupyterHub from its GpuQuotaSource (the hub checks the same when a GPU server starts). Over the limit the start fails at once with an explanation instead of waiting. This is a courtesy check inside the person's own pod; enforcing the quota belongs to whatever creates the kernel pods (later gpu-management-api).
-- GET <base>/dhbw-gpu/status: state of the person's GPU kernels from Kubernetes and Kueue (waiting with position in the queue and the latest time a GPU frees up, being prepared, running), for the JupyterLab extension dhbw-gpu-status.
+- GET <base>/dhbw-gpu/status: state of the person's GPU kernels (waiting with position in the queue and the latest time a GPU frees up, being prepared, running), for the JupyterLab extension dhbw-gpu-status.
 - POST <base>/dhbw-gpu/cancel/<kernel_id>: stop waiting (deletes the kernel pod; the start then fails).
 """
 import asyncio
 import json
 import os
-import ssl
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
-from kubernetes import client, config
 from tornado import web
 
-NAMESPACE = os.environ.get("GP_NAMESPACE", "jupyterhub")
-USER_LABEL = os.environ.get("KERNEL_HUB_USER_LABEL", "")  # label hub.jupyter.org/username of this person's server pods; kernel pods carry it as dhbw.cloud/kernel-user
-QUEUE = os.environ.get("DHBW_GPU_QUEUE", "notebooks")
+API = os.environ.get("DHBW_GPU_API", "").rstrip("/")  # the AI service's listener for the hub and the servers, e.g. http://llm-management-api-gpu-hub.default.svc:8091
 LAUNCH_TIMEOUT = int(os.environ.get("GP_LAUNCH_TIMEOUT", "600"))
 LOCAL_TZ = ZoneInfo("Europe/Berlin")
 
 HOME = os.path.expanduser("~").rstrip("/")
 _kernel_dirs = {}  # kernel_id -> directory the kernel was started in (pending kernels have no session yet)
 _cancelled = set()  # kernel ids whose wait was stopped through /dhbw-gpu/cancel
-_k8s_ready = False
-
-
-def _k8s():
-    global _k8s_ready
-    if not _k8s_ready:
-        config.load_incluster_config()
-        _k8s_ready = True
-    return client.CoreV1Api(), client.CustomObjectsApi()
 
 
 class GpuKernelError(web.HTTPError):
@@ -49,89 +37,67 @@ class GpuKernelError(web.HTTPError):
         return self.log_message
 
 
-def _get_raw(path):
-    """GET on the Kubernetes API with the pod's service account, for paths the generated client does not cover (Kueue's pendingworkloads subresource)."""
-    sa = "/var/run/secrets/kubernetes.io/serviceaccount"
-    token = open(f"{sa}/token").read().strip()
-    request = urllib.request.Request(f"https://kubernetes.default.svc{path}", headers={"Authorization": f"Bearer {token}"})
-    with urllib.request.urlopen(request, context=ssl.create_default_context(cafile=f"{sa}/ca.crt"), timeout=10) as response:
-        return json.load(response)
-
-
-def gpu_kernel_limit():
-    return int(os.environ.get("DHBW_GPU_KERNEL_LIMIT", "1"))
-
-
-def _gpu_request(pod):
-    for c in pod.spec.containers:
-        req = (c.resources.requests or {}) if c.resources else {}
-        if req.get("nvidia.com/gpu"):
-            return True
-    return False
-
-
-def _live(pods):
-    return [p for p in pods if p.status.phase in ("Pending", "Running") and not p.metadata.deletion_timestamp]
-
-
-def _active_kernel_pods():
-    """GPU kernel pods of this person that are waiting or running (not finished, not being deleted)."""
-    v1, _ = _k8s()
-    return _live(v1.list_namespaced_pod(NAMESPACE, label_selector=f"component=kernel,dhbw.cloud/kernel-user={USER_LABEL}").items)
-
-
-def _active_gpu_pods():
-    """Everything of this person that holds or waits for a GPU: GPU kernels and GPU servers (named servers of the GPU profiles)."""
-    v1, _ = _k8s()
-    servers = v1.list_namespaced_pod(NAMESPACE, label_selector=f"component=singleuser-server,hub.jupyter.org/username={USER_LABEL}").items
-    return _active_kernel_pods() + [p for p in _live(servers) if _gpu_request(p)]
+def _api(method, path, body=None, timeout=20):
+    """Call the AI service; returns (status, JSON body or None). 404 is an answer, not an error."""
+    headers = {"Authorization": "token " + os.environ.get("JUPYTERHUB_API_TOKEN", "")}
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode()
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(API + path, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+            return response.status, (json.loads(raw) if raw else None)
+    except urllib.error.HTTPError as e:
+        try:
+            payload = json.loads(e.read() or b"null")
+        except ValueError:
+            payload = None
+        if e.code in (404, 409):
+            return e.code, payload
+        message = (payload or {}).get("message") if isinstance(payload, dict) else None
+        raise GpuKernelError(message or f"Der KI-Dienst antwortet mit Fehler {e.code}.")
+    except OSError:
+        raise GpuKernelError("Der KI-Dienst ist gerade nicht erreichbar; bitte gleich noch einmal versuchen.")
 
 
 def _fmt_time(dt):
     return dt.astimezone(LOCAL_TZ).strftime("%H:%M")
 
 
+def _parse_time(s):
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
 def collect_status(labels):
     """State of this person's GPU kernels. labels: kernel_id -> notebook name. A running GPU kernel without a notebook session was started through the REST API, which only the VS Code proxy does (dhbw_kernel_launch.py), so it is called "VS Code"."""
-    v1, co = _k8s()
-    pods = _active_kernel_pods()
-    if not pods:
-        return []
-    workloads = co.list_namespaced_custom_object("kueue.x-k8s.io", "v1beta2", NAMESPACE, "workloads")["items"]
-    wl_by_pod = {ref["name"]: w for w in workloads for ref in w["metadata"].get("ownerReferences", []) if ref.get("kind") == "Pod"}
-    pending = _get_raw(f"/apis/visibility.kueue.x-k8s.io/v1beta2/namespaces/{NAMESPACE}/localqueues/{QUEUE}/pendingworkloads")
-    position = {w["metadata"]["name"]: w.get("positionInClusterQueue", 0) + 1 for w in (pending or {}).get("items", [])}
-    # When GPUs free up at the latest: running GPU pods anywhere in the cluster end at their deadline; pods with negative priority (gap-filling inference) do not count, Kueue evicts them for a waiting kernel.
+    _, overview = _api("GET", "/gpu/kernels")
+    overview = overview or {}
+    ends = [_parse_time(t) for t in overview.get("ends") or []]
     now = datetime.now(timezone.utc)
-    ends = sorted(
-        p.status.start_time.timestamp() + p.spec.active_deadline_seconds
-        for p in v1.list_pod_for_all_namespaces(field_selector="status.phase=Running").items
-        if p.status.start_time and p.spec.active_deadline_seconds and (p.spec.priority or 0) >= 0 and _gpu_request(p)
-    )
     result = []
-    for p in pods:
-        kid = p.metadata.labels.get("kernel_id", "")
-        wl = wl_by_pod.get(p.metadata.name)
-        admitted = bool(wl and (wl.get("status", {}).get("admission")))
-        waited = int((now - p.metadata.creation_timestamp).total_seconds())
+    for k in overview.get("kernels") or []:
+        kid = k.get("kernel_id", "")
+        waited = int((now - _parse_time(k["created"])).total_seconds()) if k.get("created") else 0
         label = labels.get(kid)
         if not label:
             # No notebook session: a waiting kernel of JupyterLab has none yet (its folder then), a running one is the VS Code proxy's.
-            if p.status.phase == "Running":
+            if k.get("phase") == "running":
                 label = "VS Code"
             else:
                 folder = _kernel_dirs.get(kid, "")
                 label = "Ordner ~" if folder.rstrip("/") in ("", HOME) else f"Ordner {os.path.basename(folder.rstrip('/'))}"
         entry = {"kernel_id": kid, "label": label, "waited": waited}
-        if p.status.phase == "Running":
+        if k.get("phase") == "running":
             entry.update(state="running", message="GPU-Kernel läuft")
-        elif not admitted:
-            pos = position.get(wl["metadata"]["name"]) if wl else None
+        elif not k.get("admitted"):
+            pos = k.get("position") or None
             msg = "wartet auf eine freie GPU"
             if pos:
                 msg += f", Platz {pos} in der Warteschlange"
                 if pos <= len(ends):
-                    msg += f", spätestens frei um {_fmt_time(datetime.fromtimestamp(ends[pos - 1], timezone.utc))}"
+                    msg += f", spätestens frei um {_fmt_time(ends[pos - 1])}"
             msg += f" (Abbruch nach {LAUNCH_TIMEOUT // 60} min Wartezeit)"
             entry.update(state="waiting", position=pos, message=msg)
         else:
@@ -142,8 +108,7 @@ def collect_status(labels):
 
 def cancel_kernel(kernel_id):
     _cancelled.add(kernel_id)
-    v1, _ = _k8s()
-    v1.delete_collection_namespaced_pod(NAMESPACE, label_selector=f"component=kernel,dhbw.cloud/kernel-user={USER_LABEL},kernel_id={kernel_id}")
+    _api("DELETE", f"/gpu/kernels/{kernel_id}")
 
 
 async def _session_labels(serverapp):
@@ -161,13 +126,13 @@ class StatusHandler(APIHandler):
     async def get(self):
         if os.environ.get("DHBW_KERNELS", "split") != "split":
             # Only the local kernel (profiles "CPU" and "GPU"): no kernel pods to report.
-            self.finish(json.dumps({"limit": 0, "idle_timeout": 0, "kernels": []}))
+            self.finish(json.dumps({"idle_timeout": 0, "kernels": []}))
             return
         labels = await _session_labels(self.serverapp)
         kernels = await asyncio.get_running_loop().run_in_executor(None, collect_status, labels)
         # idle_timeout: after how many seconds without execution a kernel is ended (MappingKernelManager.cull_idle_timeout) — the status bar counts down to it.
         idle = int(getattr(self.serverapp.kernel_manager, "cull_idle_timeout", 0) or 0)
-        self.finish(json.dumps({"limit": gpu_kernel_limit(), "idle_timeout": idle, "kernels": kernels}))
+        self.finish(json.dumps({"idle_timeout": idle, "kernels": kernels}))
 
 
 class CancelHandler(APIHandler):
@@ -177,46 +142,72 @@ class CancelHandler(APIHandler):
         self.finish(json.dumps({"cancelled": kernel_id}))
 
 
-def _patch_provisioner(serverapp):
-    from gateway_provisioners.k8s import KubernetesProvisioner
+def _launch_args(cmd):
+    """The launch parameters gateway_provisioners filled into the kernel spec's argv (--kernel-id, --response-address, ...)."""
+    flags = {"--kernel-id": "kernel_id", "--response-address": "response_address", "--public-key": "public_key", "--port-range": "port_range", "--kernel-class-name": "kernel_class_name", "--transport-encryption": "transport_encryption"}
+    out = {}
+    for i, arg in enumerate(cmd[:-1]):
+        if arg in flags and not cmd[i + 1].startswith("--") and not cmd[i + 1].startswith("{"):
+            out[flags[arg]] = cmd[i + 1]
+    return out
 
-    original = KubernetesProvisioner.pre_launch
+
+def _patch_provisioner(serverapp):
+    """KubernetesProvisioner without Kubernetes: the launch, the polling and the deletion go to the AI service; everything else (waiting for the kernel's connection info, interrupts, timeouts) stays gateway_provisioners'."""
+    # gateway_provisioners.k8s loads a Kubernetes configuration when imported, and this server has none (no service account token): import it once here with an empty one that is never used.
+    import tempfile
+
+    saved = {k: os.environ.get(k) for k in ("GP_USE_INCLUSTER_CONFIG", "KUBECONFIG")}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump({"apiVersion": "v1", "kind": "Config", "clusters": [{"name": "none", "cluster": {"server": "https://127.0.0.1:9"}}], "users": [{"name": "none", "user": {}}], "contexts": [{"name": "none", "context": {"cluster": "none", "user": "none"}}], "current-context": "none"}, f)
+    os.environ.update(GP_USE_INCLUSTER_CONFIG="false", KUBECONFIG=f.name)
+    try:
+        from gateway_provisioners.k8s import KubernetesProvisioner
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    from gateway_provisioners.remote_provisioner import local_ip
+
+    original_pre_launch = KubernetesProvisioner.pre_launch
 
     async def pre_launch(self, **kwargs):
         self._dhbw_pod_seen = False  # see get_container_status; reset for restarts
-        # Quota: count this person's GPU kernels and GPU servers that are waiting or running, except this kernel (a restart keeps the kernel id).
-        others = [p for p in await asyncio.get_running_loop().run_in_executor(None, _active_gpu_pods) if p.metadata.labels.get("kernel_id") != self.kernel_id]
-        limit = gpu_kernel_limit()
-        if len(others) >= limit:
-            labels = await _session_labels(serverapp)
+        self._dhbw_cwd = kwargs.get("cwd") or ""
+        if self._dhbw_cwd:
+            _kernel_dirs[self.kernel_id] = self._dhbw_cwd
+        return await original_pre_launch(self, **kwargs)
 
-            def describe(p):
-                if p.metadata.labels.get("component") == "singleuser-server":
-                    return f"GPU-Server „{p.metadata.labels.get('hub.jupyter.org/servername') or 'Standard'}“"
-                kid = p.metadata.labels.get("kernel_id")
-                if labels.get(kid):
-                    return labels[kid]
-                return f"Ordner {os.path.basename(_kernel_dirs[kid]) or '~'}" if kid in _kernel_dirs else "ein anderes Notebook"
-
-            where = ", ".join(describe(p) for p in others)
-            waiting = any(p.status.phase == "Pending" for p in others)
-            raise GpuKernelError(
-                f"Die GPU ist schon belegt ({where}{', wartet noch' if waiting else ''}), möglich {'ist 1 GPU' if limit == 1 else f'sind {limit} GPUs'} gleichzeitig. "
-                "Den anderen Kernel bzw. Server beenden oder hier „Python 3 (CPU)“ ohne GPU wählen."
-            )
-        if kwargs.get("cwd"):
-            kwargs["env"] = dict(kwargs.get("env") or os.environ)
-            kwargs["env"]["KERNEL_WORKING_DIR"] = kwargs["cwd"]
-            _kernel_dirs[self.kernel_id] = kwargs["cwd"]
-        return await original(self, **kwargs)
-
-    KubernetesProvisioner.pre_launch = pre_launch
-
-    original_status = KubernetesProvisioner.get_container_status
+    async def launch_kernel(self, cmd, **kwargs):
+        body = _launch_args(cmd)
+        body["kernel_id"] = self.kernel_id
+        body["working_dir"] = self._dhbw_cwd if getattr(self, "_dhbw_cwd", "") else ""
+        status, answer = await asyncio.get_running_loop().run_in_executor(None, lambda: _api("POST", "/gpu/kernels", body, timeout=60))
+        if status == 409:
+            raise GpuKernelError((answer or {}).get("message") or "Der GPU-Kernel wurde abgelehnt.")
+        if status == 404:
+            raise GpuKernelError("Der KI-Dienst kennt GPU-Kernel nicht; bitte den Server neu starten.")
+        self.local_proc = None
+        self.pid = 0
+        self.ip = local_ip
+        self.container_name = (answer or {}).get("name")
+        self.log_kernel_launch(cmd)
+        await self.confirm_remote_startup()
+        return self.connection_info
 
     def get_container_status(self, iteration):
         # While a kernel starts, gateway_provisioners keeps waiting (up to GP_LAUNCH_TIMEOUT) when its pod is gone. End the start at once instead, with a message JupyterLab shows: the wait was stopped, or the pod vanished (deleted, evicted).
-        status = original_status(self, iteration)
+        code, pod = _api("GET", f"/gpu/kernels/{self.kernel_id}")
+        status = ""
+        if code == 200 and pod:
+            self.container_name = pod.get("name") or self.container_name
+            status = pod.get("phase") or ""
+            if status == "running" and not self.assigned_host and pod.get("pod_ip"):
+                self.assigned_ip = pod["pod_ip"]
+                self.assigned_host = self.container_name
+                self.assigned_node_ip = pod.get("host_ip")
         if status:
             self._dhbw_pod_seen = True
         elif iteration:
@@ -227,7 +218,14 @@ def _patch_provisioner(serverapp):
                 raise GpuKernelError("Der GPU-Kernel ist beim Warten verschwunden (gelöscht oder verdrängt). Bitte den Kernel neu starten.")
         return status
 
+    def delete_managed_object(self, termination_stati):
+        _api("DELETE", f"/gpu/kernels/{self.kernel_id}")
+        return True
+
+    KubernetesProvisioner.pre_launch = pre_launch
+    KubernetesProvisioner.launch_kernel = launch_kernel
     KubernetesProvisioner.get_container_status = get_container_status
+    KubernetesProvisioner.delete_managed_object = delete_managed_object
 
 
 def _patch_sessions(serverapp):
@@ -264,4 +262,4 @@ def _load_jupyter_server_extension(serverapp):
         (url_path_join(base, "dhbw-gpu", "status"), StatusHandler),
         (url_path_join(base, "dhbw-gpu", "cancel", r"([^/]+)"), CancelHandler),
     ])
-    serverapp.log.info("dhbw_gpu: GPU kernel quota %s, status at %s", gpu_kernel_limit(), url_path_join(base, "dhbw-gpu", "status"))
+    serverapp.log.info("dhbw_gpu: GPU kernels through %s, status at %s", API or "(DHBW_GPU_API not set)", url_path_join(base, "dhbw-gpu", "status"))

@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.1.0 – 2026-10-14
+
+- GPU-Kernel: Den Kernel-Pod legt der KI-Dienst an, nicht mehr der Notebook-Server. Der Server braucht dafür keine Rechte in Kubernetes mehr; der Kernel-Pod bekommt Image und Home des Servers und nur noch die nötigen Umgebungsvariablen. Das Pod-Template `kernel-pod.yaml.j2` entfällt.
+- Das Kontingent für GPU-Kernel prüft der KI-Dienst (Grenzen und Budgets des Projekts) statt der Server selbst.
+
 ## v2.0.0 – 2026-10-14
 
 - Drei Basen statt `notebook-base`: `base-python`, `base-pytorch` (Standard) und `base-tensorflow`, aus einem Dockerfile. Sie sind die Umgebungen der Projekte für alle Server-Arten.

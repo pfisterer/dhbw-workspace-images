@@ -1,6 +1,6 @@
 """Entry point of the kernel spec "Python 3 (GPU)", for JupyterLab and for VS Code alike.
 
-JupyterLab starts the kernel through the Jupyter server, whose KubernetesProvisioner fills in {kernel_id}, {response_address} and the rest and runs this script: it hands over to gateway_provisioners' launch_kubernetes.py, which creates the kernel pod on a GPU node, exactly as before.
+JupyterLab starts the kernel through the Jupyter server, whose KubernetesProvisioner fills in {kernel_id}, {response_address} and the rest; it does not run this script but has the AI service create the kernel pod (dhbw_gpu.py), and only reads the filled-in arguments.
 
 VS Code (code-server) starts kernel specs on its own: it fills in only {connection_file} and expects a kernel on the ports in that file — it knows nothing about provisioners, so the GPU kernel never came up there. In that case — {kernel_id} still unfilled — this script is the kernel VS Code talks to: it binds the ports of the connection file, has the Jupyter server in the same pod start the real GPU kernel through its REST API (the provisioner path above, quota check and queue included), and passes the messages between VS Code's ZeroMQ channels and the kernel's websocket. To VS Code it looks like a local kernel; the GPU kernel runs as in JupyterLab.
 """
@@ -12,16 +12,11 @@ import sys
 import urllib.request
 
 DEBUG = bool(os.environ.get("DHBW_KERNEL_PROXY_DEBUG"))
-LAUNCHER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "launch_kubernetes.py")
 
 
 def provisioner_mode(argv):
-    """The provisioner filled in the kernel id: drop our --connection-file and run the real launcher."""
-    args = list(argv)
-    if "--connection-file" in args:
-        i = args.index("--connection-file")
-        del args[i:i + 2]
-    os.execv(sys.executable, [sys.executable, LAUNCHER] + args)
+    """The provisioner filled in the kernel id but ran the script anyway: dhbw_gpu is not loaded, so this server cannot start GPU kernels."""
+    sys.exit("Python 3 (GPU) needs the server extension dhbw_gpu (profile \"CPU + GPU-Kernel\"); the kernel pod is created by the AI service.")
 
 
 class Proxy:

@@ -26,7 +26,7 @@ Am einfachsten am Projekt „Basis + Git“ wählen und ein öffentliches Reposi
 Ein eigenes Image auf einer Basis, jede Version ist ein Git-Tag und in Harbor ein Tag gleichen Namens, der nicht aufgeräumt wird:
 
 ```dockerfile
-FROM registry.gpu.services.dhbw.cloud/platform/base-pytorch:v2.0.0
+FROM registry.gpu.services.dhbw.cloud/platform/base-pytorch:v2.1.0
 RUN pip install --no-cache-dir transformers datasets
 ```
 

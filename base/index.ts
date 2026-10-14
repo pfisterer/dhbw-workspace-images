@@ -13,7 +13,6 @@ interface IKernelStatus {
 }
 
 interface IStatus {
-  limit: number;
   idle_timeout?: number;
   kernels: IKernelStatus[];
 }
@@ -55,7 +54,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
     item.id = 'dhbw-gpu-status';
     item.addClass('dhbw-gpu-item');
     item.addClass('dhbw-gpu-idle');
-    let last: IStatus = { limit: 0, kernels: [] };
+    let last: IStatus = { kernels: [] };
     app.shell.add(item, 'top', { rank: 1100 });
 
     const notifications = new Map<string, string>(); // kernel id -> notification id
