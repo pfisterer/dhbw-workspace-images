@@ -1,9 +1,13 @@
 # Changelog
 
+## v2.2.1 – 2026-10-14
+
+- Die Quelle der JupyterLab-Erweiterung liegt wieder flach in `base/` (`tsconfig.json` darauf eingestellt): Der Build im Cluster bekommt seinen Kontext ohne Unterordner, v2.2.0 ließ sich dort nicht bauen.
+
 ## v2.2.0 – 2026-10-14
 
 - GPU-Kernel: Neben dem GPU-Status in der Leiste steht „Jetzt freigeben“; der Knopf beendet die GPU-Kernel sofort, ohne Rückfrage, und gibt die GPU frei. Ein Klick auf den Text fragt wie bisher nach.
-- Die Quelle der JupyterLab-Erweiterung liegt in `base/src`, `tsconfig.json` mit `moduleResolution: bundler`.
+- `tsconfig.json` mit `moduleResolution: bundler`.
 
 ## v2.1.0 – 2026-10-14
 

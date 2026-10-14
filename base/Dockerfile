@@ -3,9 +3,10 @@ ARG BASE
 
 # JupyterLab extension, built with Node in a separate stage.
 FROM ${BASE} AS labext
-RUN mamba install --yes --quiet nodejs=22 && mkdir -p /tmp/ext/src
+RUN mamba install --yes --quiet nodejs=22 && mkdir -p /tmp/ext
 COPY --chown=${NB_UID}:${NB_GID} package.json tsconfig.json /tmp/ext/
-COPY --chown=${NB_UID}:${NB_GID} src/index.ts /tmp/ext/src/index.ts
+# Flat: the cluster build gets its context as one ConfigMap, without subdirectories.
+COPY --chown=${NB_UID}:${NB_GID} index.ts /tmp/ext/index.ts
 WORKDIR /tmp/ext
 # node_modules instead of Yarn Plug'n'Play, so that tsc finds the packages (as in the JupyterLab extension template).
 RUN echo 'nodeLinker: node-modules' > .yarnrc.yml && jlpm install && jlpm build
