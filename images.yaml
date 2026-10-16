@@ -20,11 +20,13 @@ notebook-tensorflow:
     BASE: quay.io/jupyter/tensorflow-notebook:cuda-hub-5.5.1
     XGBOOST: xgboost
 # The bases of the projects' environments (base/Dockerfile): the notebook image plus the GPU kernel machinery and the label cloud.dhbw.base, for every profile. Built after the notebook images (stage 2, "platform:" names another image of this file). "base" is what the self-service offers (name, the default); a project chooses one, optionally adds packages from Git on it, or names a finished image derived from one.
+#
+# Versions (base_versions in the AI service): a base entry is one version of a family; its id names the version (python-3.13, pytorch-2.11-cu13), and a project keeps the version it has. A new version is a new entry with a new image name (e.g. base-pytorch-2.12-cu13, on a notebook image with the new upstream tag) and "default: true"; the old one gets "status: deprecated", "replaced_by: <new id>" and, if it must go at a fixed day, "end_of_life: YYYY-MM-DD" (the AI service then moves its remaining projects to the successor). Without end_of_life it stays until the catalogue shows no project on it any more; then delete the entry.
 base-python:
   dockerfile: base
   stage: 2
   platforms: [amd64, arm64]
-  base: {name: "Python (ohne GPU-Bibliotheken)"}
+  base: {id: python-3.13, family: python, version: "3.13", name: "Python 3.13 (ohne GPU-Bibliotheken)"}
   args:
     BASE: platform:notebook-cpu
     VARIANT: python
@@ -32,14 +34,14 @@ base-pytorch:
   dockerfile: base
   stage: 2
   platforms: [amd64, arm64]
-  base: {name: "PyTorch 2.11 · CUDA 13", default: true}
+  base: {id: pytorch-2.11-cu13, family: pytorch, version: 2.11-cu13, name: "PyTorch 2.11 · CUDA 13", default: true}
   args:
     BASE: platform:notebook-pytorch
     VARIANT: pytorch
 base-tensorflow:
   dockerfile: base
   stage: 2
-  base: {name: "TensorFlow / Keras"}
+  base: {id: tensorflow-2.21, family: tensorflow, version: "2.21", name: "TensorFlow 2.21 · Keras 3"}
   args:
     BASE: platform:notebook-tensorflow
     VARIANT: tensorflow
