@@ -27,13 +27,13 @@ RUN rm /usr/local/bin/code-server \
 
 USER ${NB_UID}
 
-# PyTorch for another CUDA (TORCH_CUDA, e.g. cu130): the same version as the upstream image's, from PyTorch's wheels for that CUDA, with torchvision and torchaudio to match; the CUDA 12 libraries only torch needed go. CUDA 13 brings kernels for the GB10 (sm_110/sm_120 builds), about six times the bf16 throughput of the cu128 wheels there (probe 16.10.2026), and runs with the 595 drivers of all GPU nodes.
+# PyTorch for another CUDA (TORCH_CUDA, e.g. cu130): the same version as the upstream image's, from PyTorch's wheels for that CUDA, with torchvision and torchaudio to match. The CUDA 12 libraries go first: their packages and those for CUDA 13 share paths (nvidia/cudnn/lib/libcudnn.so.9), so removing them afterwards would remove the new ones. CUDA 13 brings kernels for the GB10 (sm_110/sm_120 builds), about ten times the bf16 throughput of the cu128 wheels there (probe 16.10.2026), and runs with the 595 drivers of all GPU nodes.
 ARG TORCH_CUDA=
 RUN if [ -n "${TORCH_CUDA}" ]; then \
       v="$(python -c 'import torch; print(torch.__version__.split("+")[0])')" \
-   && pip install --no-cache-dir --index-url "https://download.pytorch.org/whl/${TORCH_CUDA}" "torch==${v}+${TORCH_CUDA}" torchvision torchaudio \
    && old="$(pip list --format freeze | grep -E '^nvidia-[a-z0-9-]+-cu12==' | cut -d= -f1)" \
-   && if [ -n "${old}" ]; then pip uninstall -y ${old}; fi \
+   && pip uninstall -y torch torchvision torchaudio ${old} \
+   && pip install --no-cache-dir --index-url "https://download.pytorch.org/whl/${TORCH_CUDA}" "torch==${v}+${TORCH_CUDA}" torchvision torchaudio \
    && python -c 'import torch, torchvision; print(torch.__version__, torch.version.cuda, torchvision.__version__)' \
    && fix-permissions "${CONDA_DIR}"; \
     fi
