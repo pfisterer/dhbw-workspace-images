@@ -1,15 +1,19 @@
-# The images built from this repository: name in Harbor (registry.gpu.services.dhbw.cloud/platform/<name>), directory with the Dockerfile, build arguments. Read by aiaas-deployment (ansible/tasks/image-refs.yaml) at the release tag it pins.
+# The images built from this repository: name in Harbor (registry.gpu.services.dhbw.cloud/platform/<name>), directory with the Dockerfile, build arguments, platforms (default amd64; with arm64 the image is built natively on an arm64 node as well and published as one multi-platform image, for the GB10 nodes). Read by aiaas-deployment (ansible/tasks/image-refs.yaml) at the release tag it pins. A base on a notebook image needs the same platforms as that one.
 notebook-cpu:
   dockerfile: notebook
+  platforms: [amd64, arm64]
   args:
     BASE: quay.io/jupyter/scipy-notebook:hub-5.5.1
     # Without the CUDA libraries (the plain package pulls in nvidia-nccl, about 200 MB).
     XGBOOST: xgboost-cpu
 notebook-pytorch:
   dockerfile: notebook
+  # The arm64 variant of Docker Stacks' cuda12 image runs on the GB10 (probe 16.10.2026: PyTorch 2.11+cu128, sm_120 kernels on sm_121).
+  platforms: [amd64, arm64]
   args:
     BASE: quay.io/jupyter/pytorch-notebook:cuda12-hub-5.5.1
     XGBOOST: xgboost
+    TORCH_CUDA: cu130
 notebook-tensorflow:
   dockerfile: notebook
   args:
@@ -19,6 +23,7 @@ notebook-tensorflow:
 base-python:
   dockerfile: base
   stage: 2
+  platforms: [amd64, arm64]
   base: {name: "Python (ohne GPU-Bibliotheken)"}
   args:
     BASE: platform:notebook-cpu
@@ -26,7 +31,8 @@ base-python:
 base-pytorch:
   dockerfile: base
   stage: 2
-  base: {name: "PyTorch", default: true}
+  platforms: [amd64, arm64]
+  base: {name: "PyTorch 2.11 · CUDA 13", default: true}
   args:
     BASE: platform:notebook-pytorch
     VARIANT: pytorch
