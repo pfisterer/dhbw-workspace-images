@@ -4,8 +4,8 @@ FROM ${BASE}
 
 ARG CODE_SERVER_VERSION=4.141.0
 ARG XGBOOST=xgboost
-# Set by BuildKit per platform (amd64, arm64); code-server ships a tarball for each.
-ARG TARGETARCH=amd64
+# Set by BuildKit per platform (amd64, arm64); code-server ships a tarball for each. No default: one would override BuildKit's value.
+ARG TARGETARCH
 
 USER root
 
