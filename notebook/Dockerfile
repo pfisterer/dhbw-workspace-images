@@ -9,9 +9,11 @@ ARG TARGETARCH
 
 USER root
 
+# Security updates of the OS packages on top of the upstream image (Trivy in Harbor). /usr/bin/pebble comes with Ubuntu's base image outside any package, is not used here and carries an old Go runtime.
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends curl git-lfs openssh-client rsync htop \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* /usr/bin/pebble
 
 # code-server as a standalone release under /opt/code-server. The Python and Jupyter extensions (Open VSX) go into its built-in extension directory: they are there for everyone, and extensions a person installs land in ~/.local/share/code-server in the persistent home.
 RUN curl -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_SERVER_VERSION}/code-server-${CODE_SERVER_VERSION}-linux-${TARGETARCH}.tar.gz" | tar -xz -C /opt \
@@ -19,6 +21,15 @@ RUN curl -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_S
  && ln -s /opt/code-server/bin/code-server /usr/local/bin/code-server \
  && HOME=/tmp/cs code-server --extensions-dir /opt/code-server/lib/vscode/extensions --install-extension ms-python.python --install-extension ms-toolsai.jupyter \
  && rm -rf /tmp/cs
+
+# Node modules code-server bundles in versions with known vulnerabilities, replaced by fixed releases from npm (checked by SHA-256): basic-ftp (6.x only drops separate transfer hosts by default) and shell-quote. Remove an entry once a code-server release brings the version itself.
+RUN set -e; for m in "node_modules/basic-ftp basic-ftp-6.2.3 3c2d91c437866ce6cfeeb0a0b1c28729b2951c7c01b3d12abb7eda87e1e9b132" \
+                    "lib/vscode/node_modules/shell-quote shell-quote-1.12.0 3cdb295c8aa0565ff782e8e3e482a83caba67110857ac3b74aad4312407898a6"; do \
+      set -- $m; d="/opt/code-server/$1"; n="${2%-*}"; \
+      curl -fsSL -o /tmp/m.tgz "https://registry.npmjs.org/${n}/-/$2.tgz"; \
+      echo "$3  /tmp/m.tgz" | sha256sum -c -; \
+      test -d "$d"; rm -rf "$d"; mkdir -p "$d"; tar -xzf /tmp/m.tgz -C "$d" --strip-components=1 --no-same-owner; rm /tmp/m.tgz; \
+    done
 
 # Without Workspace Trust: the server belongs to one person and only holds their own files, so the "Restricted Mode" question on every start protects nothing. jupyter-vscode-proxy runs "code-server" from PATH and has no setting for extra flags, hence a wrapper in place of the link.
 RUN rm /usr/local/bin/code-server \
@@ -35,6 +46,13 @@ RUN if [ -n "${TORCH_CUDA}" ]; then \
    && pip uninstall -y torch torchvision torchaudio ${old} \
    && pip install --no-cache-dir --index-url "https://download.pytorch.org/whl/${TORCH_CUDA}" "torch==${v}+${TORCH_CUDA}" torchvision torchaudio \
    && python -c 'import torch, torchvision; print(torch.__version__, torch.version.cuda, torchvision.__version__)' \
+   && fix-permissions "${CONDA_DIR}"; \
+    fi
+
+# nbclassic (the classic notebook UI, nothing here depends on it; Notebook 7 serves /tree) ships an old underscore.js; removed alone (--force), so that its dependencies such as nest-asyncio stay; pip vendors its own copies of urllib3, msgpack and setuptools, which Trivy lists as well and only a pip release can update.
+RUN if python -c 'import nbclassic' 2>/dev/null; then \
+      mamba remove --force --yes --quiet --prefix "${CONDA_DIR}" nbclassic \
+   && mamba clean --all -f -y \
    && fix-permissions "${CONDA_DIR}"; \
     fi
 

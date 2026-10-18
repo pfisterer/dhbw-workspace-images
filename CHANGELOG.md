@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.5.0 – 2026-10-18
+
+- Sicherheitsupdates: Die Notebook-Images bauen auf den Jupyter-Docker-Stacks-Images vom 12.10.2026 (Datums-Tag statt `hub-5.5.1`, das seit 01.09. nicht mehr neu gebaut wird): Ubuntu 26.04, JupyterHub 6.0.1 (Single-User, läuft mit dem Hub 5.5), JupyterLab 4.6.4, Notebook 7.6.3, Python 3.13; PyTorch 2.11 und TensorFlow 2.21 wie bisher.
+- Beim Bau werden die Ubuntu-Pakete aktualisiert (`apt-get upgrade`), `/usr/bin/pebble` aus dem Ubuntu-Basis-Image entfällt.
+- code-server: die mitgelieferten Node-Module `basic-ftp` (6.2.3) und `shell-quote` (1.12.0) durch korrigierte Versionen ersetzt.
+- `nbclassic` (klassische Notebook-Oberfläche) entfällt; `/tree` liefert Notebook 7.
+- Trivy (nur Funde mit verfügbarer Korrektur): `base-python` von 8 kritisch / 169 hoch auf 0 kritisch / 4 hoch; die restlichen vier stecken in den von pip mitgelieferten Kopien von urllib3, msgpack und setuptools.
+
 ## v2.2.1 – 2026-10-14
 
 - Die Quelle der JupyterLab-Erweiterung liegt wieder flach in `base/` (`tsconfig.json` darauf eingestellt): Der Build im Cluster bekommt seinen Kontext ohne Unterordner, v2.2.0 ließ sich dort nicht bauen.

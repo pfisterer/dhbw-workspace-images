@@ -1,9 +1,10 @@
 # The images built from this repository: name in Harbor (registry.gpu.services.dhbw.cloud/platform/<name>), directory with the Dockerfile, build arguments, platforms (default amd64; with arm64 the image is built natively on an arm64 node as well and published as one multi-platform image, for the GB10 nodes). Read by aiaas-deployment (ansible/tasks/image-refs.yaml) at the release tag it pins. A base on a notebook image needs the same platforms as that one.
+# The upstream images are pinned by their date tag (Docker Stacks rebuilds them weekly with current packages; a tag such as hub-5.5.1 stops being rebuilt once a newer JupyterHub comes out, then its packages age). A new date tag is a new release of this repository; Trivy in Harbor shows what is left.
 notebook-cpu:
   dockerfile: notebook
   platforms: [amd64, arm64]
   args:
-    BASE: quay.io/jupyter/scipy-notebook:hub-5.5.1
+    BASE: quay.io/jupyter/scipy-notebook:2026-10-12
     # Without the CUDA libraries (the plain package pulls in nvidia-nccl, about 200 MB).
     XGBOOST: xgboost-cpu
 notebook-pytorch:
@@ -11,13 +12,13 @@ notebook-pytorch:
   # The arm64 variant of Docker Stacks' cuda12 image runs on the GB10 (probe 16.10.2026: PyTorch 2.11+cu128, sm_120 kernels on sm_121).
   platforms: [amd64, arm64]
   args:
-    BASE: quay.io/jupyter/pytorch-notebook:cuda12-hub-5.5.1
+    BASE: quay.io/jupyter/pytorch-notebook:cuda12-2026-10-12
     XGBOOST: xgboost
     TORCH_CUDA: cu130
 notebook-tensorflow:
   dockerfile: notebook
   args:
-    BASE: quay.io/jupyter/tensorflow-notebook:cuda-hub-5.5.1
+    BASE: quay.io/jupyter/tensorflow-notebook:cuda-2026-10-12
     XGBOOST: xgboost
 # The bases of the projects' environments (base/Dockerfile): the notebook image plus the GPU kernel machinery and the label cloud.dhbw.base, for every profile. Built after the notebook images (stage 2, "platform:" names another image of this file). "base" is what the self-service offers (name, the default); a project chooses one, optionally adds packages from Git on it, or names a finished image derived from one.
 #
