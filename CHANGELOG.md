@@ -6,7 +6,7 @@
 - Beim Bau werden die Ubuntu-Pakete aktualisiert (`apt-get upgrade`), `/usr/bin/pebble` aus dem Ubuntu-Basis-Image entfällt.
 - code-server: die mitgelieferten Node-Module `basic-ftp` (6.2.3) und `shell-quote` (1.12.0) durch korrigierte Versionen ersetzt.
 - `nbclassic` (klassische Notebook-Oberfläche) entfällt; `/tree` liefert Notebook 7.
-- Trivy (nur Funde mit verfügbarer Korrektur): `base-python` von 8 kritisch / 169 hoch auf 0 kritisch / 4 hoch; die restlichen vier stecken in den von pip mitgelieferten Kopien von urllib3, msgpack und setuptools.
+- Trivy in Harbor (nur Funde mit verfügbarer Korrektur): `base-python` von 8 kritisch / 169 hoch auf 0 kritisch / 4 hoch, `base-pytorch` 0 / 7, `base-tensorflow` 0 / 5 (beide vorher nicht gescannt); die verbleibenden stecken in den von pip und setuptools mitgelieferten Kopien (urllib3, msgpack, setuptools, wheel, jaraco.context).
 
 ## v2.2.1 – 2026-10-14
 
