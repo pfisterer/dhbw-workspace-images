@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.6.0 – 2026-10-19
+
+- Rückgabezeiten je Projekt (aiaas-deployment `idle_release`): Die Erweiterung `dhbw_gpu` beendet ruhende Kernel und den ruhenden Workspace nach den Zeiten, die der Hub in `DHBW_RELEASE` übergibt (Leerlauf mit offenem Tab, ohne Tab, Obergrenze; für den Workspace und seine lokalen Kernel die CPU-Zeiten, für GPU-Kernel die GPU-Zeiten). Gezählt wird Leerlauf: Ein Kernel gilt auch dann als aktiv, wenn er im Hintergrund-Thread rechnet (CPU- oder GPU-Last aus seiner `usage_reply`), der Workspace bei Last im Container, Terminal-Ein- und -Ausgaben und beim Speichern. JupyterLabs eigener Kernel-Culler ist dann aus; ohne `DHBW_RELEASE` (Hub von vorher) bleibt alles wie bisher.
+- Neues Modul `dhbw_kernel_usage` (über `/etc/ipython/ipython_kernel_config.py`): Die `usage_reply` des Kernels enthält die GPU-Auslastung aus `nvidia-smi` im eigenen Pod.
+- JupyterLab-Erweiterung `dhbw-gpu-status` 0.4.0: Kurz vor der Rückgabe warnt eine Meldung mit „Weiterarbeiten“ (zählt als Aktivität), kurz vor der Obergrenze eine Meldung mit der Uhrzeit; der Countdown eines GPU-Kernels kommt vom Server und berücksichtigt die Last.
+
 ## v2.5.0 – 2026-10-18
 
 - Sicherheitsupdates: Die Notebook-Images bauen auf den Jupyter-Docker-Stacks-Images vom 12.10.2026 (Datums-Tag statt `hub-5.5.1`, das seit 01.09. nicht mehr neu gebaut wird): Ubuntu 26.04, JupyterHub 6.0.1 (Single-User, läuft mit dem Hub 5.5), JupyterLab 4.6.4, Notebook 7.6.3, Python 3.13; PyTorch 2.11 und TensorFlow 2.21 wie bisher.

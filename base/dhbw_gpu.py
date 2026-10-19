@@ -5,6 +5,7 @@
 - One session per notebook while its kernel starts (_patch_sessions).
 - GET <base>/dhbw-gpu/status: state of the person's GPU kernels (waiting with position in the queue and the latest time a GPU frees up, being prepared, running), for the JupyterLab extension dhbw-gpu-status.
 - POST <base>/dhbw-gpu/cancel/<kernel_id>: stop waiting (deletes the kernel pod; the start then fails).
+- Release times (dhbw_release.py, every profile): idle kernels and the idle server end by the project's times; the status tells what is left (server, each kernel) for the warning in the bar, POST <base>/dhbw-gpu/keepalive is "Weiterarbeiten".
 """
 import asyncio
 import json
@@ -89,6 +90,9 @@ def collect_status(labels):
                 folder = _kernel_dirs.get(kid, "")
                 label = "Ordner ~" if folder.rstrip("/") in ("", HOME) else f"Ordner {os.path.basename(folder.rstrip('/'))}"
         entry = {"kernel_id": kid, "label": label, "waited": waited}
+        if k.get("ends_at"):
+            # The kernel pod's upper bound (the project's release times; none = no entry).
+            entry["ends_at"] = k["ends_at"]
         if k.get("phase") == "running":
             entry.update(state="running", message="GPU-Kernel läuft")
         elif not k.get("admitted"):
@@ -121,18 +125,37 @@ async def _session_labels(serverapp):
     return labels
 
 
+_release = None  # dhbw_release.Release while DHBW_RELEASE is set
+
+
 class StatusHandler(APIHandler):
     @web.authenticated
     async def get(self):
+        # release: what is left until the server and each kernel go back (dhbw_release), for the warning in the bar; null without release times.
+        release = _release.state if _release is not None else None
         if os.environ.get("DHBW_KERNELS", "split") != "split":
             # Only the local kernel (profiles "CPU" and "GPU"): no kernel pods to report.
-            self.finish(json.dumps({"idle_timeout": 0, "kernels": []}))
+            self.finish(json.dumps({"idle_timeout": 0, "kernels": [], "release": release}))
             return
         labels = await _session_labels(self.serverapp)
         kernels = await asyncio.get_running_loop().run_in_executor(None, collect_status, labels)
-        # idle_timeout: after how many seconds without execution a kernel is ended (MappingKernelManager.cull_idle_timeout) — the status bar counts down to it.
+        for k in kernels:
+            left = ((release or {}).get("kernels") or {}).get(k["kernel_id"])
+            if left:
+                k.update(idle_left=left["idle_left"], idle_warn=left["warn"])
+        # idle_timeout: after how many seconds without execution a kernel is ended (MappingKernelManager.cull_idle_timeout) — the bar counts down to it where the release times give no idle_left (a hub from before).
         idle = int(getattr(self.serverapp.kernel_manager, "cull_idle_timeout", 0) or 0)
-        self.finish(json.dumps({"idle_timeout": idle, "kernels": kernels}))
+        self.finish(json.dumps({"idle_timeout": idle, "kernels": kernels, "release": release}))
+
+
+class KeepaliveHandler(APIHandler):
+    """ "Weiterarbeiten" in the warning: counts as activity of the server and its kernels."""
+
+    @web.authenticated
+    async def post(self):
+        if _release is not None:
+            _release.keepalive()
+        self.finish(json.dumps({"ok": True}))
 
 
 class CancelHandler(APIHandler):
@@ -255,11 +278,19 @@ def _jupyter_server_extension_points():
 
 
 def _load_jupyter_server_extension(serverapp):
+    global _release
     _patch_provisioner(serverapp)
     _patch_sessions(serverapp)
+    try:
+        import dhbw_release
+
+        _release = dhbw_release.setup(serverapp)
+    except Exception as e:  # noqa: BLE001 - without it JupyterLab's own culler and shutdown remain
+        serverapp.log.warning("dhbw_gpu: release times not active: %s", e)
     base = serverapp.web_app.settings["base_url"]
     serverapp.web_app.add_handlers(".*$", [
         (url_path_join(base, "dhbw-gpu", "status"), StatusHandler),
         (url_path_join(base, "dhbw-gpu", "cancel", r"([^/]+)"), CancelHandler),
+        (url_path_join(base, "dhbw-gpu", "keepalive"), KeepaliveHandler),
     ])
     serverapp.log.info("dhbw_gpu: GPU kernels through %s, status at %s", API or "(DHBW_GPU_API not set)", url_path_join(base, "dhbw-gpu", "status"))
