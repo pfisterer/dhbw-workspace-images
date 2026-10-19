@@ -5,6 +5,7 @@
 - Rückgabezeiten je Projekt (aiaas-deployment `idle_release`): Die Erweiterung `dhbw_gpu` beendet ruhende Kernel und den ruhenden Workspace nach den Zeiten, die der Hub in `DHBW_RELEASE` übergibt (Leerlauf mit offenem Tab, ohne Tab, Obergrenze; für den Workspace und seine lokalen Kernel die CPU-Zeiten, für GPU-Kernel die GPU-Zeiten). Gezählt wird Leerlauf: Ein Kernel gilt auch dann als aktiv, wenn er im Hintergrund-Thread rechnet (CPU- oder GPU-Last aus seiner `usage_reply`), der Workspace bei Last im Container, Terminal-Ein- und -Ausgaben und beim Speichern. JupyterLabs eigener Kernel-Culler ist dann aus; ohne `DHBW_RELEASE` (Hub von vorher) bleibt alles wie bisher.
 - Neues Modul `dhbw_kernel_usage` (über `/etc/ipython/ipython_kernel_config.py`): Die `usage_reply` des Kernels enthält die GPU-Auslastung aus `nvidia-smi` im eigenen Pod.
 - JupyterLab-Erweiterung `dhbw-gpu-status` 0.4.0: Kurz vor der Rückgabe warnt eine Meldung mit „Weiterarbeiten“ (zählt als Aktivität), kurz vor der Obergrenze eine Meldung mit der Uhrzeit; der Countdown eines GPU-Kernels kommt vom Server und berücksichtigt die Last.
+- Trivy in Harbor (nur Funde mit verfügbarer Korrektur), unverändert zu v2.5.0: `base-python` 0 kritisch / 4 hoch, `base-pytorch` 0 / 7, `base-tensorflow` 0 / 5.
 
 ## v2.5.0 – 2026-10-18
 
