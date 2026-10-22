@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.6.2 – 2026-10-22
+
+- Sicherheitsupdates: Die Notebook-Images bauen auf den Jupyter-Docker-Stacks-Images vom 19.10.2026 (Pillow 13.0.0, urllib3 2.8.0, msgpack 1.2.3); certifi 2026.10.19 und pip 26.2.2 (dessen eigene Kopie von certifi ebenfalls 2026.10.19); in code-server `follow-redirects` 1.16.1.
+
 ## v2.6.1 – 2026-10-22
 
 - GPU-Kernel: Beim Beenden sagt der Server dem KI-Dienst, warum (für sein Forschungsprotokoll `research_workloads`): `idle` (Rückgabezeiten, auch wenn der ganze Workspace wegen Leerlauf endet), `cancel` („Warten abbrechen“), `timeout` (Start dauerte länger als `GP_LAUNCH_TIMEOUT`), `person` (Shut Down, Restart, „Jetzt freigeben“, VS Code); endet der Server selbst (Hub, Culler), geht der Aufruf ohne Grund. Vorher kam jedes Ende als „vom Server beendet“ an.

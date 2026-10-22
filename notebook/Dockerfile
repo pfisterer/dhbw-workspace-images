@@ -22,9 +22,10 @@ RUN curl -fsSL "https://github.com/coder/code-server/releases/download/v${CODE_S
  && HOME=/tmp/cs code-server --extensions-dir /opt/code-server/lib/vscode/extensions --install-extension ms-python.python --install-extension ms-toolsai.jupyter \
  && rm -rf /tmp/cs
 
-# Node modules code-server bundles in versions with known vulnerabilities, replaced by fixed releases from npm (checked by SHA-256): basic-ftp (6.x only drops separate transfer hosts by default) and shell-quote. Remove an entry once a code-server release brings the version itself.
+# Node modules code-server bundles in versions with known vulnerabilities, replaced by fixed releases from npm (checked by SHA-256): basic-ftp (6.x only drops separate transfer hosts by default), shell-quote and follow-redirects. Remove an entry once a code-server release brings the version itself.
 RUN set -e; for m in "node_modules/basic-ftp basic-ftp-6.2.3 3c2d91c437866ce6cfeeb0a0b1c28729b2951c7c01b3d12abb7eda87e1e9b132" \
-                    "lib/vscode/node_modules/shell-quote shell-quote-1.12.0 3cdb295c8aa0565ff782e8e3e482a83caba67110857ac3b74aad4312407898a6"; do \
+                    "lib/vscode/node_modules/shell-quote shell-quote-1.12.0 3cdb295c8aa0565ff782e8e3e482a83caba67110857ac3b74aad4312407898a6" \
+                    "node_modules/follow-redirects follow-redirects-1.16.1 6e075d999dc5ff568916954508397b11a537b18bde615986d7bd8b3d3fa1799f"; do \
       set -- $m; d="/opt/code-server/$1"; n="${2%-*}"; \
       curl -fsSL -o /tmp/m.tgz "https://registry.npmjs.org/${n}/-/$2.tgz"; \
       echo "$3  /tmp/m.tgz" | sha256sum -c -; \
@@ -55,6 +56,11 @@ RUN if python -c 'import nbclassic' 2>/dev/null; then \
    && mamba clean --all -f -y \
    && fix-permissions "${CONDA_DIR}"; \
     fi
+
+# certifi from the upstream image (2026.7.22) and the copy inside pip (2026.6.17) carry a revoked root (GHSA-6q48-6c7w-9gw2); pip 26.2.2 vendors 2026.10.19. Drop once the upstream image brings both.
+RUN pip install --no-cache-dir --upgrade "pip>=26.2.2" "certifi>=2026.10.19" \
+ && python -c 'import certifi, pip._vendor.certifi as v; print("certifi", certifi.__version__, "pip vendored", v.__version__)' \
+ && fix-permissions "${CONDA_DIR}"
 
 # jupyter-server-proxy explicitly: jupyter-vscode-proxy 0.7 no longer depends on it, and without it there is no VS Code tile.
 RUN pip install --no-cache-dir nbgitpuller jupyter-server-proxy jupyter-vscode-proxy jupyterlab-git "${XGBOOST}" \

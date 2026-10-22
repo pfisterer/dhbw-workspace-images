@@ -4,7 +4,7 @@ notebook-cpu:
   dockerfile: notebook
   platforms: [amd64, arm64]
   args:
-    BASE: quay.io/jupyter/scipy-notebook:2026-10-12
+    BASE: quay.io/jupyter/scipy-notebook:2026-10-19
     # Without the CUDA libraries (the plain package pulls in nvidia-nccl, about 200 MB).
     XGBOOST: xgboost-cpu
 notebook-pytorch:
@@ -12,13 +12,13 @@ notebook-pytorch:
   # The arm64 variant of Docker Stacks' cuda12 image runs on the GB10 (probe 16.10.2026: PyTorch 2.11+cu128, sm_120 kernels on sm_121).
   platforms: [amd64, arm64]
   args:
-    BASE: quay.io/jupyter/pytorch-notebook:cuda12-2026-10-12
+    BASE: quay.io/jupyter/pytorch-notebook:cuda12-2026-10-19
     XGBOOST: xgboost
     TORCH_CUDA: cu130
 notebook-tensorflow:
   dockerfile: notebook
   args:
-    BASE: quay.io/jupyter/tensorflow-notebook:cuda-2026-10-12
+    BASE: quay.io/jupyter/tensorflow-notebook:cuda-2026-10-19
     XGBOOST: xgboost
 # The bases of the projects' environments (base/Dockerfile): the notebook image plus the GPU kernel machinery and the label cloud.dhbw.base, for every profile. Built after the notebook images (stage 2, "platform:" names another image of this file). "base" is what the self-service offers (name, the default); a project chooses one, optionally adds packages from Git on it, or names a finished image derived from one.
 #
