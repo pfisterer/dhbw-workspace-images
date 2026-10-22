@@ -17,6 +17,8 @@ import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 
+import dhbw_gpu  # loaded first anyway: dhbw_gpu's server extension imports this module
+
 TICK = int(os.environ.get("DHBW_RELEASE_TICK", "30"))  # seconds between two checks (shorter only for tests)
 TAB_WINDOW = 120  # seconds an API request counts as an open tab
 WARN_BEFORE = 300  # seconds before a release the warning appears (at most half the idle time)
@@ -212,9 +214,13 @@ class Release:
                 self.drop_client(kid)
                 self.kernel_active.pop(kid, None)
                 try:
+                    if kernel.kernel_name == GPU_KERNEL_SPEC:
+                        dhbw_gpu.mark_stop(kid, "idle")
                     await km.shutdown_kernel(kid)
                 except Exception as e:  # noqa: BLE001
                     self.log.warning("dhbw_release: kernel %s not ended: %s", kid, e)
+                    if kernel.kernel_name == GPU_KERNEL_SPEC:
+                        dhbw_gpu.unmark_stop(kid)
                 continue
             kernels[kid] = {"idle_left": int(limit - idle), "idle_limit": limit, "warn": limit - idle <= warn_window(limit), "active": reason}
             latest = last if latest is None or last > latest else latest
@@ -237,6 +243,13 @@ class Release:
         if idle >= limit and not self._stopping:
             self._stopping = True
             self.log.warning("dhbw_release: stopping the server after %d s without activity (limit %d s, %s)", idle, limit, "tab open" if tab else "no tab")
+            # Its GPU kernels go down with it, and they were idle too.
+            for kid in list(km.list_kernel_ids()):
+                try:
+                    if km.get_kernel(kid).kernel_name == GPU_KERNEL_SPEC:
+                        dhbw_gpu.mark_stop(kid, "idle")
+                except KeyError:
+                    pass
             self.app.stop()
 
     def keepalive(self):

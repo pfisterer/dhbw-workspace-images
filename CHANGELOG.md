@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.6.1 – 2026-10-22
+
+- GPU-Kernel: Beim Beenden sagt der Server dem KI-Dienst, warum (für sein Forschungsprotokoll `research_workloads`): `idle` (Rückgabezeiten, auch wenn der ganze Workspace wegen Leerlauf endet), `cancel` („Warten abbrechen“), `timeout` (Start dauerte länger als `GP_LAUNCH_TIMEOUT`), `person` (Shut Down, Restart, „Jetzt freigeben“, VS Code); endet der Server selbst (Hub, Culler), geht der Aufruf ohne Grund. Vorher kam jedes Ende als „vom Server beendet“ an.
+
 ## v2.6.0 – 2026-10-19
 
 - Rückgabezeiten je Projekt (aiaas-deployment `idle_release`): Die Erweiterung `dhbw_gpu` beendet ruhende Kernel und den ruhenden Workspace nach den Zeiten, die der Hub in `DHBW_RELEASE` übergibt (Leerlauf mit offenem Tab, ohne Tab, Obergrenze; für den Workspace und seine lokalen Kernel die CPU-Zeiten, für GPU-Kernel die GPU-Zeiten). Gezählt wird Leerlauf: Ein Kernel gilt auch dann als aktiv, wenn er im Hintergrund-Thread rechnet (CPU- oder GPU-Last aus seiner `usage_reply`), der Workspace bei Last im Container, Terminal-Ein- und -Ausgaben und beim Speichern. JupyterLabs eigener Kernel-Culler ist dann aus; ohne `DHBW_RELEASE` (Hub von vorher) bleibt alles wie bisher.

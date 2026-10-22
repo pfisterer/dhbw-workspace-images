@@ -26,6 +26,8 @@ LOCAL_TZ = ZoneInfo("Europe/Berlin")
 HOME = os.path.expanduser("~").rstrip("/")
 _kernel_dirs = {}  # kernel_id -> directory the kernel was started in (pending kernels have no session yet)
 _cancelled = set()  # kernel ids whose wait was stopped through /dhbw-gpu/cancel
+_stop_reasons = {}  # kernel_id -> why it is ended (idle, cancel, timeout), sent with the deletion for the AI service's research log; a kernel without one was ended by the person
+_server_stopping = False  # the server ends all its kernels on its way down (hub, culler, release times): the deletion goes without a reason
 
 
 class GpuKernelError(web.HTTPError):
@@ -110,9 +112,26 @@ def collect_status(labels):
     return result
 
 
+def mark_stop(kernel_id, reason):
+    """Remember why the kernel is about to end (idle, cancel, timeout); the deletion that follows sends it."""
+    _stop_reasons[kernel_id] = reason
+
+
+def unmark_stop(kernel_id):
+    """The kernel did not end after all."""
+    _stop_reasons.pop(kernel_id, None)
+
+
+def _delete_kernel(kernel_id):
+    """Delete the kernel pod, saying why: the marked reason, none while the server goes down, else the person ended it (shut down, restart, "Jetzt freigeben", VS Code)."""
+    reason = _stop_reasons.pop(kernel_id, None if _server_stopping else "person")
+    _api("DELETE", f"/gpu/kernels/{kernel_id}" + (f"?reason={reason}" if reason else ""))
+
+
 def cancel_kernel(kernel_id):
     _cancelled.add(kernel_id)
-    _api("DELETE", f"/gpu/kernels/{kernel_id}")
+    mark_stop(kernel_id, "cancel")
+    _delete_kernel(kernel_id)
 
 
 async def _session_labels(serverapp):
@@ -192,7 +211,7 @@ def _patch_provisioner(serverapp):
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
-    from gateway_provisioners.remote_provisioner import local_ip
+    from gateway_provisioners.remote_provisioner import RemoteProvisionerBase, local_ip, poll_interval
 
     original_pre_launch = KubernetesProvisioner.pre_launch
 
@@ -242,10 +261,19 @@ def _patch_provisioner(serverapp):
         return status
 
     def delete_managed_object(self, termination_stati):
-        _api("DELETE", f"/gpu/kernels/{self.kernel_id}")
+        _delete_kernel(self.kernel_id)
         return True
 
+    # gateway_provisioners 0.5.0's own check, with the reason marked before its kill(): the start waited longer than GP_LAUNCH_TIMEOUT.
+    async def handle_launch_timeout(self):
+        await asyncio.sleep(poll_interval)
+        if RemoteProvisionerBase.get_time_diff(self.start_time) > self.launch_timeout:
+            mark_stop(self.kernel_id, "timeout")
+            await self.kill()
+            self.log_and_raise(TimeoutError(f"KernelID: '{self.kernel_id}' launch timeout due to: Waited too long ({self.launch_timeout}s) to get connection file"))
+
     KubernetesProvisioner.pre_launch = pre_launch
+    KubernetesProvisioner.handle_launch_timeout = handle_launch_timeout
     KubernetesProvisioner.launch_kernel = launch_kernel
     KubernetesProvisioner.get_container_status = get_container_status
     KubernetesProvisioner.delete_managed_object = delete_managed_object
@@ -273,6 +301,18 @@ def _patch_sessions(serverapp):
     manager.create_session = create_session
 
 
+def _patch_cleanup(serverapp):
+    """Kernels the server ends on its way down (stopped by the hub, its culler or the release times) were not ended by the person: their deletions go without a reason."""
+    original = serverapp.cleanup_kernels
+
+    async def cleanup_kernels():
+        global _server_stopping
+        _server_stopping = True
+        await original()
+
+    serverapp.cleanup_kernels = cleanup_kernels
+
+
 def _jupyter_server_extension_points():
     return [{"module": "dhbw_gpu"}]
 
@@ -281,6 +321,7 @@ def _load_jupyter_server_extension(serverapp):
     global _release
     _patch_provisioner(serverapp)
     _patch_sessions(serverapp)
+    _patch_cleanup(serverapp)
     try:
         import dhbw_release
 
