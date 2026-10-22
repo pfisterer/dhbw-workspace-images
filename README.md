@@ -44,6 +44,6 @@ Was sich zwischen den Versionen ändert, steht in [CHANGELOG.md](CHANGELOG.md).
 
 1. Änderung per Pull Request nach `main`, Eintrag in `CHANGELOG.md`.
 2. Tag setzen: `git tag v1.1.0 && git push origin v1.1.0`.
-3. In `aiaas-deployment` die Version in `ansible/vars/images.yaml` (`workspace_images.version`) hochsetzen und die Images bauen (`--tags images`), danach den Hub ausrollen (`--tags jupyterhub`).
+3. In `aiaas-deployment` die Version in `ansible/vars/images.yaml` (`workspace_images.version`) hochsetzen und die Images bauen (`--tags images`), dann den Digest von `platform/base-python:<version>` als `workspace_init_image.digest` eintragen und den Hub (`--tags jupyterhub`) sowie den KI-Dienst (`--tags llm_management_api`, er nennt dem Startformular die Basen samt Version) auf Prod und Staging ausrollen.
 
 Gebaut wird im Cluster mit BuildKit, nicht in GitHub: Die GPU-Images sind über 10 GB groß, und so braucht GitHub keine Zugangsdaten zu Harbor. Der Build legt das Image unter einem Hash des Inhalts ab (unverändert = kein Neubau) und gibt ihm den Versions-Tag dazu.
