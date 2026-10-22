@@ -3,6 +3,7 @@
 ## v2.6.1 – 2026-10-22
 
 - GPU-Kernel: Beim Beenden sagt der Server dem KI-Dienst, warum (für sein Forschungsprotokoll `research_workloads`): `idle` (Rückgabezeiten, auch wenn der ganze Workspace wegen Leerlauf endet), `cancel` („Warten abbrechen“), `timeout` (Start dauerte länger als `GP_LAUNCH_TIMEOUT`), `person` (Shut Down, Restart, „Jetzt freigeben“, VS Code); endet der Server selbst (Hub, Culler), geht der Aufruf ohne Grund. Vorher kam jedes Ende als „vom Server beendet“ an.
+- Trivy in Harbor (nur Funde mit verfügbarer Korrektur): `base-python` 5 kritisch / 22 hoch, `base-pytorch` 5 / 25, `base-tensorflow` 5 / 23. Die Zunahme gegenüber v2.6.0 kommt aus seither veröffentlichten Meldungen, nicht aus dieser Änderung (der Scan von v2.6.0 ist vom 19.10.): Pillow 12.3.0 (3 kritisch, behoben in 13.0.0), certifi (kritisch, behoben in 2026.10.19), urllib3 2.7.0 (behoben in 2.8.0), msgpack, follow-redirects (code-server), setuptools.
 
 ## v2.6.0 – 2026-10-19
 
