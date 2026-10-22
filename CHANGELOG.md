@@ -2,7 +2,8 @@
 
 ## v2.6.2 – 2026-10-22
 
-- Sicherheitsupdates: Die Notebook-Images bauen auf den Jupyter-Docker-Stacks-Images vom 19.10.2026 (Pillow 13.0.0, urllib3 2.8.0, msgpack 1.2.3); certifi 2026.10.19 und pip 26.2.2 (dessen eigene Kopie von certifi ebenfalls 2026.10.19); in code-server `follow-redirects` 1.16.1.
+- Sicherheitsupdates: Die Notebook-Images bauen auf den Jupyter-Docker-Stacks-Images vom 19.10.2026 (Pillow 13.0.0, urllib3 2.8.0, msgpack 1.2.3); certifi 2026.10.19 und pip 26.2.2 (dessen eigene Kopie von certifi ebenfalls 2026.10.19); in code-server `follow-redirects` 1.16.1. PyTorch bleibt 2.11 (cu130), TensorFlow 2.21, Pillow 13 mit Matplotlib und torchvision geprüft.
+- Trivy in Harbor (nur Funde mit verfügbarer Korrektur): `base-python` 0 kritisch / 4 hoch, `base-pytorch` 0 / 7, `base-tensorflow` 0 / 5; die verbleibenden stecken in den von pip mitgelieferten Kopien (urllib3, msgpack, setuptools) und bei PyTorch und TensorFlow in Paketen des Upstream-Images (setuptools 78.1.0, wheel, jaraco.context, Brotli).
 
 ## v2.6.1 – 2026-10-22
 
