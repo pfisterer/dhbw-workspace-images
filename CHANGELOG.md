@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.7.1 – 2026-11-01
+
+- Die Dateien der VS-Code-Erweiterung `dhbw.activity` liegen flach in `notebook/`: Der Build im Cluster bekommt seinen Kontext ohne Unterordner, v2.7.0 ließ sich dort nicht bauen.
+
 ## v2.7.0 – 2026-11-01
 
 - VS Code zählt für die Rückgabezeiten: Tippen, Cursor, Scrollen, Speichern und Befehle im Terminal gelten als Aktivität (eingebaute Erweiterung `dhbw.activity`), und ein offener VS-Code-Tab gilt als offener Tab. Vorher zählte in VS Code nur CPU-Last, und es galt die kürzere Zeit ohne Tab. Die Warnung vor der Rückgabe mit „Weiterarbeiten“ erscheint jetzt auch in VS Code.
