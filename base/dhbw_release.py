@@ -5,9 +5,9 @@ The hub passes the times in DHBW_RELEASE (seconds, from the AI service: the budg
 Counted is idle time, not runtime. Activity is:
 - a kernel executing (execution_state busy) or sending output, as JupyterLab's own culler sees it;
 - a kernel's CPU or GPU load, from its usage_reply on the control channel (answered while it computes; dhbw_kernel_usage adds the GPU's utilisation from nvidia-smi in the kernel's own pod): a training in a background thread shows "idle" but loads CPU or GPU;
-- for the server also the load of the whole container (cgroup CPU, nvidia-smi where the server has the GPU itself), a terminal's input and output, and saving a file;
+- for the server also the load of the whole container (cgroup CPU, nvidia-smi where the server has the GPU itself), a terminal's input and output, saving a file, and the person's input in an app behind jupyter-server-proxy that reports it through a file in DHBW_ACTIVITY_DIR (VS Code: the extension dhbw.activity of the notebook image);
 - "Weiterarbeiten" in the warning (POST <base>/dhbw-gpu/keepalive).
-A tab counts as open while JupyterLab, VS Code or the status bar talk to the server (API requests in the last two minutes) or a notebook is connected to the kernel; then idle_open applies, else idle_closed. JupyterLab's own kernel culler is switched off (it would end a computing background thread); its shutdown_no_activity stays as the fallback, and the activity found here goes into the server's last activity (dhbw_last_activity), which JupyterHub's culler sees as well.
+A tab counts as open while JupyterLab or the status bar talk to the server (API requests in the last two minutes), an app behind jupyter-server-proxy has traffic (VS Code's connection sends keepalives while its tab is open), or a notebook is connected to the kernel; then idle_open applies, else idle_closed. The proxy's traffic is no activity: an open VS Code tab nobody uses talks all the time (measured 31.10.2026), the app's own report counts instead. JupyterLab's own kernel culler is switched off (it would end a computing background thread); its shutdown_no_activity stays as the fallback, and the activity found here goes into the server's last activity (dhbw_last_activity), which JupyterHub's culler sees as well.
 """
 import asyncio
 import json
@@ -26,6 +26,8 @@ KERNEL_CPU_ACTIVE = float(os.environ.get("DHBW_ACTIVE_KERNEL_CPU", "10"))  # per
 SERVER_CPU_ACTIVE = float(os.environ.get("DHBW_ACTIVE_SERVER_CPU", "0.3"))  # cores of the container (JupyterLab, VS Code and the server itself use a few percent)
 GPU_ACTIVE = float(os.environ.get("DHBW_ACTIVE_GPU", "5"))  # percent utilisation
 GPU_KERNEL_SPEC = "python3-gpu"
+ACTIVITY_DIR = os.environ.get("DHBW_ACTIVITY_DIR", "/tmp/dhbw-activity")  # one file per app, touched on the person's input
+PROXY_ACTIVITY = "jupyter-server-proxy"  # its key in the server's last_activity_times, set on every proxied request and websocket message
 
 
 def utcnow():
@@ -43,6 +45,15 @@ def parse_release(raw):
     if min(server["idle_open"], server["idle_closed"], kernel["idle_open"], kernel["idle_closed"]) <= 0:
         return None
     return {"server": server, "kernel": kernel}
+
+
+def app_activity(directory=ACTIVITY_DIR):
+    """The person's latest input in an app behind jupyter-server-proxy: the newest file in the directory, None without any."""
+    try:
+        times = [e.stat().st_mtime for e in os.scandir(directory) if e.is_file()]
+    except OSError:
+        return None
+    return datetime.fromtimestamp(max(times), timezone.utc) if times else None
 
 
 def idle_limit(times, tab_open):
@@ -130,8 +141,9 @@ class Release:
         return utcnow()
 
     def tab_open(self, now):
-        last = self.app.web_app.settings.get("api_last_activity")
-        return bool(last) and (now - last).total_seconds() < TAB_WINDOW
+        settings = self.app.web_app.settings
+        seen = (settings.get("api_last_activity"), (settings.get("last_activity_times") or {}).get(PROXY_ACTIVITY))
+        return any(t is not None and (now - t).total_seconds() < TAB_WINDOW for t in seen)
 
     def server_load_active(self):
         cores = self.cpu.cores()
@@ -169,9 +181,9 @@ class Release:
         return self.kernel if getattr(kernel, "kernel_name", "") == GPU_KERNEL_SPEC else self.server
 
     def other_activity(self):
-        """Terminals (input and output) and file saves, as the server records them."""
+        """Terminals (input and output) and file saves, as the server records them, and input in apps behind jupyter-server-proxy."""
         settings = self.app.web_app.settings
-        times = [t for t in (settings.get("terminal_last_activity"), settings.get("dhbw_save_activity"), self.keepalive_at) if t]
+        times = [t for t in (settings.get("terminal_last_activity"), settings.get("dhbw_save_activity"), self.keepalive_at, app_activity()) if t]
         return max(times) if times else None
 
     def mark_active(self, now):

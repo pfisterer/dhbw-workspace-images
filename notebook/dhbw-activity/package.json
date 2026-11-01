@@ -1,0 +1,52 @@
+{
+  "name": "activity",
+  "publisher": "dhbw",
+  "displayName": "DHBW Workspaces",
+  "description": "DHBW-Menü in der Statusleiste, Eingaben für die Rückgabezeiten des Workspaces und deren Warnung.",
+  "version": "1.1.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dhbw.menu",
+        "title": "Menü",
+        "category": "DHBW"
+      },
+      {
+        "command": "dhbw.jupyterlab",
+        "title": "JupyterLab öffnen",
+        "category": "DHBW"
+      },
+      {
+        "command": "dhbw.servers",
+        "title": "Aktive Workspaces (Self-Service)",
+        "category": "DHBW"
+      },
+      {
+        "command": "dhbw.projects",
+        "title": "Workspace-Projekte (Self-Service)",
+        "category": "DHBW"
+      },
+      {
+        "command": "dhbw.docs",
+        "title": "Anleitungen (dhbw.cloud)",
+        "category": "DHBW"
+      },
+      {
+        "command": "dhbw.agent",
+        "title": "Coding-Agent im Terminal starten (OpenCode)",
+        "category": "DHBW"
+      }
+    ]
+  }
+}

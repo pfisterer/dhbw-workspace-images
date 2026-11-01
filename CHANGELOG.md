@@ -1,5 +1,11 @@
 # Changelog
 
+## Unveröffentlicht
+
+- VS Code zählt für die Rückgabezeiten: Tippen, Cursor, Scrollen, Speichern und Befehle im Terminal gelten als Aktivität (eingebaute Erweiterung `dhbw.activity`), und ein offener VS-Code-Tab gilt als offener Tab. Vorher zählte in VS Code nur CPU-Last, und es galt die kürzere Zeit ohne Tab. Die Warnung vor der Rückgabe mit „Weiterarbeiten“ erscheint jetzt auch in VS Code.
+- Der Verkehr einer App hinter jupyter-server-proxy ist keine Aktivität mehr, nur noch ein Zeichen für den offenen Tab; Apps melden Eingaben über eine Datei in `DHBW_ACTIVITY_DIR`.
+- Coding-Agenten im Terminal: OpenCode ist im Notebook-Image, Claude Code wird beim ersten Aufruf von `claude` geladen. Beide nutzen die Sprachmodelle des Projekts; Claude Code kann nach `/login` (erstes Mal mit `DHBW_CLAUDE=abo claude`) auch ein eigenes Claude-Abo nutzen, `/logout` schaltet zurück.
+
 ## v2.6.2 – 2026-10-22
 
 - Sicherheitsupdates: Die Notebook-Images bauen auf den Jupyter-Docker-Stacks-Images vom 19.10.2026 (Pillow 13.0.0, urllib3 2.8.0, msgpack 1.2.3); certifi 2026.10.19 und pip 26.2.2 (dessen eigene Kopie von certifi ebenfalls 2026.10.19); in code-server `follow-redirects` 1.16.1. PyTorch bleibt 2.11 (cu130), TensorFlow 2.21, Pillow 13 mit Matplotlib und torchvision geprüft.

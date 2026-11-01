@@ -37,6 +37,9 @@ RUN rm /usr/local/bin/code-server \
  && printf '#!/bin/sh\nexec /opt/code-server/bin/code-server --disable-workspace-trust "$@"\n' > /usr/local/bin/code-server \
  && chmod 755 /usr/local/bin/code-server
 
+# The person's input in VS Code for the release times (dhbw_release.py of the bases; aiaas-deployment docs/todo.md app_idle): VS Code's traffic is no activity, the built-in extension dhbw.activity reports typing, saving and terminal commands and shows the release warning.
+COPY dhbw-activity /opt/code-server/lib/vscode/extensions/dhbw-activity
+
 # Coding agents in the terminal (aiaas-deployment, todo agents_in_workspace). The AI service's JupyterHub configures both at every start with the project's LLM key: OpenCode through the provider "dhbw" in ~/.config/opencode/opencode.json (model "agent"), Claude Code through the server's ANTHROPIC_* variables. OpenCode (MIT) is the release binary from npm, checked by SHA-256. Claude Code is not shipped (Anthropic's terms): /usr/local/bin/claude fetches the pinned release on first use into the person's ~/.cache (dhbw-claude.sh). Neither updates itself, and Claude Code sends no telemetry or error reports to Anthropic; a new version is a new release of this repository (versions at least two weeks old, hashes of the npm tarballs).
 ARG OPENCODE_VERSION=1.19.3
 ARG OPENCODE_SHA256_AMD64=71d67513eb4078a7ff8eb96806b1d5edcd6533a72b311409b2e88bad4188dac6
