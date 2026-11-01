@@ -1,6 +1,6 @@
 # Changelog
 
-## Unveröffentlicht
+## v2.7.0 – 2026-11-01
 
 - VS Code zählt für die Rückgabezeiten: Tippen, Cursor, Scrollen, Speichern und Befehle im Terminal gelten als Aktivität (eingebaute Erweiterung `dhbw.activity`), und ein offener VS-Code-Tab gilt als offener Tab. Vorher zählte in VS Code nur CPU-Last, und es galt die kürzere Zeit ohne Tab. Die Warnung vor der Rückgabe mit „Weiterarbeiten“ erscheint jetzt auch in VS Code.
 - Der Verkehr einer App hinter jupyter-server-proxy ist keine Aktivität mehr, nur noch ein Zeichen für den offenen Tab; Apps melden Eingaben über eine Datei in `DHBW_ACTIVITY_DIR`.
