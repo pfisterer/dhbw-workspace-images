@@ -57,7 +57,7 @@ RUN set -e; case "${TARGETARCH}" in amd64) a=x64; s="${OPENCODE_SHA256_AMD64}";;
     rm -rf /tmp/oc.tgz /tmp/package; \
     sed -e "s/@VERSION@/${CLAUDE_CODE_VERSION}/" -e "s/@SHA_AMD64@/${CLAUDE_CODE_SHA256_AMD64}/" -e "s/@SHA_ARM64@/${CLAUDE_CODE_SHA256_ARM64}/" /tmp/dhbw-claude.sh > /usr/local/bin/claude; \
     chmod 0755 /usr/local/bin/claude; rm /tmp/dhbw-claude.sh; \
-    opencode --version
+    HOME=/tmp/oc-home opencode --version; rm -rf /tmp/oc-home
 ENV OPENCODE_DISABLE_AUTOUPDATE=1 \
     DISABLE_AUTOUPDATER=1 \
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1

@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.7.2 – 2026-11-01
+
+- Die Probe von OpenCode beim Bau schreibt nicht mehr als root ins Home von jovyan; v2.7.1 scheiterte daran bei `fix-permissions`.
+
 ## v2.7.1 – 2026-11-01
 
 - Die Dateien der VS-Code-Erweiterung `dhbw.activity` liegen flach in `notebook/`: Der Build im Cluster bekommt seinen Kontext ohne Unterordner, v2.7.0 ließ sich dort nicht bauen.
