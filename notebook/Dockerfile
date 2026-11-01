@@ -37,6 +37,27 @@ RUN rm /usr/local/bin/code-server \
  && printf '#!/bin/sh\nexec /opt/code-server/bin/code-server --disable-workspace-trust "$@"\n' > /usr/local/bin/code-server \
  && chmod 755 /usr/local/bin/code-server
 
+# Coding agents in the terminal (aiaas-deployment, todo agents_in_workspace). The AI service's JupyterHub configures both at every start with the project's LLM key: OpenCode through the provider "dhbw" in ~/.config/opencode/opencode.json (model "agent"), Claude Code through the server's ANTHROPIC_* variables. OpenCode (MIT) is the release binary from npm, checked by SHA-256. Claude Code is not shipped (Anthropic's terms): /usr/local/bin/claude fetches the pinned release on first use into the person's ~/.cache (dhbw-claude.sh). Neither updates itself, and Claude Code sends no telemetry or error reports to Anthropic; a new version is a new release of this repository (versions at least two weeks old, hashes of the npm tarballs).
+ARG OPENCODE_VERSION=1.19.3
+ARG OPENCODE_SHA256_AMD64=71d67513eb4078a7ff8eb96806b1d5edcd6533a72b311409b2e88bad4188dac6
+ARG OPENCODE_SHA256_ARM64=2c97235c616d859b01c742744c6182d4c90512b34a914d1a17bdf47bd2fa70bc
+ARG CLAUDE_CODE_VERSION=2.1.302
+ARG CLAUDE_CODE_SHA256_AMD64=3bc5817207175089cbe0a02a989bdf35b228497f8f76d3c3ba13d568dc8f25e2
+ARG CLAUDE_CODE_SHA256_ARM64=8a3be117b2d679bba24ec14fc64906280c6a993944a036a70c4b675f5ada5e33
+COPY dhbw-claude.sh /tmp/dhbw-claude.sh
+RUN set -e; case "${TARGETARCH}" in amd64) a=x64; s="${OPENCODE_SHA256_AMD64}";; arm64) a=arm64; s="${OPENCODE_SHA256_ARM64}";; *) echo "no OpenCode for ${TARGETARCH}"; exit 1;; esac; \
+    curl -fsSL -o /tmp/oc.tgz "https://registry.npmjs.org/opencode-linux-${a}/-/opencode-linux-${a}-${OPENCODE_VERSION}.tgz"; \
+    echo "${s}  /tmp/oc.tgz" | sha256sum -c -; \
+    tar -xzf /tmp/oc.tgz -C /tmp package/bin/opencode; \
+    install -m 0755 /tmp/package/bin/opencode /usr/local/bin/opencode; \
+    rm -rf /tmp/oc.tgz /tmp/package; \
+    sed -e "s/@VERSION@/${CLAUDE_CODE_VERSION}/" -e "s/@SHA_AMD64@/${CLAUDE_CODE_SHA256_AMD64}/" -e "s/@SHA_ARM64@/${CLAUDE_CODE_SHA256_ARM64}/" /tmp/dhbw-claude.sh > /usr/local/bin/claude; \
+    chmod 0755 /usr/local/bin/claude; rm /tmp/dhbw-claude.sh; \
+    opencode --version
+ENV OPENCODE_DISABLE_AUTOUPDATE=1 \
+    DISABLE_AUTOUPDATER=1 \
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+
 USER ${NB_UID}
 
 # PyTorch for another CUDA (TORCH_CUDA, e.g. cu130): the same version as the upstream image's, from PyTorch's wheels for that CUDA, with torchvision and torchaudio to match. The CUDA 12 libraries go first: their packages and those for CUDA 13 share paths (nvidia/cudnn/lib/libcudnn.so.9), so removing them afterwards would remove the new ones. CUDA 13 brings kernels for the GB10 (sm_110/sm_120 builds), about ten times the bf16 throughput of the cu128 wheels there (probe 16.10.2026), and runs with the 595 drivers of all GPU nodes.
