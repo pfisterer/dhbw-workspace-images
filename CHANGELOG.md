@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.7.3 – 2026-11-02
+
+- Batch-Jobs: papermill (Notebooks als Job) und `dhbw-cloud` (`dhbw-cloud job submit -- …`; Projekt und Adresse setzt der Hub über `DHBW_PROJECT` und `DHBW_CLOUD_URL`).
+
 ## v2.7.2 – 2026-11-01
 
 - Die Probe von OpenCode beim Bau schreibt nicht mehr als root ins Home von jovyan; v2.7.1 scheiterte daran bei `fix-permissions`.
