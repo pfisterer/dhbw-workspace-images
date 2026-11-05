@@ -88,7 +88,7 @@ RUN pip install --no-cache-dir --upgrade "pip>=26.2.2" "certifi>=2026.10.19" \
  && fix-permissions "${CONDA_DIR}"
 
 # jupyter-server-proxy explicitly: jupyter-vscode-proxy 0.7 no longer depends on it, and without it there is no VS Code tile. papermill runs notebooks as batch jobs, dhbw-cloud is the command for them (dhbw-cloud job submit; the hub sets DHBW_PROJECT and DHBW_CLOUD_URL), pinned to the AI service's release it was built for.
-ARG DHBW_CLOUD_VERSION=0.2.62.dev4
+ARG DHBW_CLOUD_VERSION=0.2.73
 RUN pip install --no-cache-dir nbgitpuller jupyter-server-proxy jupyter-vscode-proxy jupyterlab-git "${XGBOOST}" papermill "dhbw-cloud==${DHBW_CLOUD_VERSION}" \
  && fix-permissions "${CONDA_DIR}" \
  && fix-permissions "/home/${NB_USER}"
