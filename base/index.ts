@@ -1,9 +1,17 @@
-// DHBW GPU platform: makes GPU kernels visible, and warns before the project's release times end the workspace or a GPU kernel (dhbw_release in the server extension). Polls the server extension dhbw_gpu (<base>/dhbw-gpu/status) every 5 s; a waiting or starting GPU kernel gets a notification with its position in the queue and a button to stop waiting. While a GPU kernel holds the GPU, the top bar shows a pulsing red dot with the time until an idle kernel is ended and a button „Jetzt freigeben“ that ends it without asking, which frees the GPU at once; a click on the text ends it after asking. A start refused by the quota is reported by JupyterLab itself (error dialog with the server's message). Release times: shortly before the workspace or a GPU kernel goes back for lack of activity, a warning with „Weiterarbeiten“ (counts as activity); shortly before the project's upper bound ends the workspace or a GPU kernel, a notice with the time. A GPU kernel whose pod ended on its own (evicted for local storage, past the upper bound) gets an error notification with the reason, once.
+// DHBW GPU platform: makes GPU kernels visible, and warns before the project's release times end the workspace or a GPU kernel (dhbw_release in the server extension). Polls the server extension dhbw_gpu (<base>/dhbw-gpu/status) every 5 s; a waiting or starting GPU kernel gets a notification with its position in the queue and a button to stop waiting. While a GPU kernel holds the GPU, the top bar shows a pulsing red dot with the time until an idle kernel is ended and a button „Jetzt freigeben“ that ends it without asking, which frees the GPU at once; a click on the text ends it after asking. A start refused by the quota is reported by JupyterLab itself (error dialog with the server's message). Release times: shortly before the workspace or a GPU kernel goes back for lack of activity, a warning with „Weiterarbeiten“ (counts as activity); shortly before the project's upper bound ends the workspace or a GPU kernel, a notice with the time. A GPU kernel whose pod ended on its own (evicted for local storage, past the upper bound) gets an error notification with the reason, once. Local storage (dhbw_scratch in the server extension): when the workspace or a GPU kernel has filled 80 % of its local storage outside the home, a warning says how much and what to do; from 95 % an error notification says it again, before the kubelet evicts the pod.
 import { JupyterFrontEnd, JupyterFrontEndPlugin } from '@jupyterlab/application';
 import { Dialog, Notification, showDialog } from '@jupyterlab/apputils';
 import { URLExt } from '@jupyterlab/coreutils';
 import { ServerConnection } from '@jupyterlab/services';
 import { Widget } from '@lumino/widgets';
+
+// Local storage outside the home (dhbw_scratch): bytes used and allowed, the warning level (0, 80, 95) and its text while there is one.
+interface IScratch {
+  used: number;
+  limit: number;
+  level: number;
+  message?: string;
+}
 
 interface IKernelStatus {
   kernel_id: string;
@@ -14,6 +22,7 @@ interface IKernelStatus {
   idle_left?: number;
   idle_warn?: boolean;
   ends_at?: string;
+  scratch?: IScratch;
 }
 
 interface IServerRelease {
@@ -38,6 +47,7 @@ interface IStatus {
   kernels: IKernelStatus[];
   ended?: IKernelEnded[];
   release?: { server: IServerRelease } | null;
+  scratch?: IScratch | null;
 }
 
 const STYLE = `
@@ -142,6 +152,41 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
     };
 
+    // Local storage: one notification per level reached (80 % a warning, 95 % an error), dismissed when the level is over; a higher level replaces the lower one's.
+    const scratchShown = new Map<string, { level: number; id: string }>(); // "server" or kernel id -> what is shown
+    const scratchWarnings = (status: IStatus) => {
+      const current = new Map<string, { scratch: IScratch; label: string }>();
+      if (status.scratch) {
+        current.set('server', { scratch: status.scratch, label: '' });
+      }
+      for (const k of status.kernels) {
+        if (k.scratch) {
+          current.set(k.kernel_id, { scratch: k.scratch, label: `${k.label}: ` });
+        }
+      }
+      for (const [key, { scratch, label }] of current) {
+        const shownNow = scratchShown.get(key);
+        if (shownNow && shownNow.level === scratch.level) {
+          continue;
+        }
+        if (shownNow) {
+          Notification.dismiss(shownNow.id);
+          scratchShown.delete(key);
+        }
+        if (scratch.level && scratch.message) {
+          const text = label + scratch.message;
+          const id = scratch.level >= 95 ? Notification.error(text, { autoClose: false }) : Notification.warning(text, { autoClose: false });
+          scratchShown.set(key, { level: scratch.level, id });
+        }
+      }
+      for (const [key, { id }] of scratchShown) {
+        if (!current.has(key)) {
+          Notification.dismiss(id);
+          scratchShown.delete(key);
+        }
+      }
+    };
+
     const notifications = new Map<string, string>(); // kernel id -> notification id
     const endedShown = new Set<string>(); // "kernel id@at" of the ends already reported
     const shown = new Map<string, string>(); // kernel id -> last message shown
@@ -205,6 +250,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
       last = status;
       polledAt = Date.now();
       warnings(status);
+      scratchWarnings(status);
       render();
     };
 

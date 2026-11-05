@@ -37,7 +37,7 @@ RUN rm /usr/local/bin/code-server \
  && printf '#!/bin/sh\nexec /opt/code-server/bin/code-server --disable-workspace-trust "$@"\n' > /usr/local/bin/code-server \
  && chmod 755 /usr/local/bin/code-server
 
-# The person's input in VS Code for the release times (dhbw_release.py of the bases; aiaas-deployment docs/todo.md app_idle): VS Code's traffic is no activity, the built-in extension dhbw.activity reports typing, saving and terminal commands and shows the release warning. Its files lie flat next to this Dockerfile: the build in the cluster gets its context without subdirectories.
+# The person's input in VS Code for the release times (dhbw_release.py of the bases; aiaas-deployment docs/todo.md app_idle): VS Code's traffic is no activity, the built-in extension dhbw.activity reports typing, saving and terminal commands and shows the release warning and the warning before the local storage is full. Its files lie flat next to this Dockerfile: the build in the cluster gets its context without subdirectories.
 COPY dhbw-activity.package.json /opt/code-server/lib/vscode/extensions/dhbw-activity/package.json
 COPY dhbw-activity.extension.js /opt/code-server/lib/vscode/extensions/dhbw-activity/extension.js
 

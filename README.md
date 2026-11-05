@@ -38,7 +38,7 @@ Was sich zwischen den Versionen ändert, steht in [CHANGELOG.md](CHANGELOG.md).
 
 - `images.yaml` – die Images: Name in Harbor, Verzeichnis mit dem Dockerfile, Build-Argumente.
 - `notebook/Dockerfile` – ein Dockerfile für alle drei Varianten; `BASE` wählt das Jupyter-Image, `XGBOOST` das passende Paket.
-- `base/` – die Basen (`VARIANT` python, pytorch, tensorflow): Kernel-Spec „Python 3 (GPU)“ mit gateway_provisioners, Pod-Vorlage des GPU-Kernels, Start-Hook `dhbw-kernels.sh` (welche Kernel ein Server anbietet), Server-Erweiterung `dhbw_gpu` und JupyterLab-Erweiterung `dhbw-gpu-status`.
+- `base/` – die Basen (`VARIANT` python, pytorch, tensorflow): Kernel-Spec „Python 3 (GPU)“ mit gateway_provisioners, Pod-Vorlage des GPU-Kernels, Start-Hook `dhbw-kernels.sh` (welche Kernel ein Server anbietet), Server-Erweiterung `dhbw_gpu` (mit Rückgabezeiten `dhbw_release` und Messung des lokalen Speichers `dhbw_scratch`) und JupyterLab-Erweiterung `dhbw-gpu-status`.
 
 ## Release
 

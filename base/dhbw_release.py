@@ -7,6 +7,7 @@ Counted is idle time, not runtime. Activity is:
 - a kernel's CPU or GPU load, from its usage_reply on the control channel (answered while it computes; dhbw_kernel_usage adds the GPU's utilisation from nvidia-smi in the kernel's own pod): a training in a background thread shows "idle" but loads CPU or GPU;
 - for the server also the load of the whole container (cgroup CPU, nvidia-smi where the server has the GPU itself), a terminal's input and output, saving a file, and the person's input in an app behind jupyter-server-proxy that reports it through a file in DHBW_ACTIVITY_DIR (VS Code: the extension dhbw.activity of the notebook image);
 - "Weiterarbeiten" in the warning (POST <base>/dhbw-gpu/keepalive).
+A GPU kernel is asked for its usage_reply also while it computes (then only for its local storage, dhbw_scratch: busy is activity anyway).
 A tab counts as open while JupyterLab or the status bar talk to the server (API requests in the last two minutes), an app behind jupyter-server-proxy has traffic (VS Code's connection sends keepalives while its tab is open), or a notebook is connected to the kernel; then idle_open applies, else idle_closed. The proxy's traffic is no activity: an open VS Code tab nobody uses talks all the time (measured 31.10.2026), the app's own report counts instead. JupyterLab's own kernel culler is switched off (it would end a computing background thread); its shutdown_no_activity stays as the fallback, and the activity found here goes into the server's last activity (dhbw_last_activity), which JupyterHub's culler sees as well.
 """
 import asyncio
@@ -206,16 +207,20 @@ class Release:
             seen = [t for t in (getattr(kernel, "last_activity", None), self.kernel_active.get(kid), self.keepalive_at) if t is not None]
             last = max(seen) if seen else now
             reason = ""
-            if getattr(kernel, "execution_state", "") == "busy":
+            busy = getattr(kernel, "execution_state", "") == "busy"
+            # A GPU kernel is asked while it computes as well: its reply carries the local storage of its pod (dhbw_scratch), which a computation fills.
+            remote = getattr(kernel, "kernel_name", "") == GPU_KERNEL_SPEC
+            usage = await self.kernel_usage(kid, kernel) if remote or not busy else None
+            if usage and remote and dhbw_gpu._scratch is not None:
+                dhbw_gpu._scratch.kernel_usage(kid, usage)
+            if busy:
                 last, reason = now, "busy"
-            else:
-                usage = await self.kernel_usage(kid, kernel)
-                if usage:
-                    cpu, gpu = usage.get("kernel_cpu"), usage.get("gpu_util")
-                    if isinstance(cpu, (int, float)) and cpu >= KERNEL_CPU_ACTIVE:
-                        last, reason = now, f"cpu {cpu:.0f}%"
-                    elif isinstance(gpu, (int, float)) and gpu >= GPU_ACTIVE:
-                        last, reason = now, f"gpu {gpu:.0f}%"
+            elif usage:
+                cpu, gpu = usage.get("kernel_cpu"), usage.get("gpu_util")
+                if isinstance(cpu, (int, float)) and cpu >= KERNEL_CPU_ACTIVE:
+                    last, reason = now, f"cpu {cpu:.0f}%"
+                elif isinstance(gpu, (int, float)) and gpu >= GPU_ACTIVE:
+                    last, reason = now, f"gpu {gpu:.0f}%"
             if reason:
                 self.kernel_active[kid] = now
             connected = km._kernel_connections.get(kid, 0) > 0
@@ -239,6 +244,8 @@ class Release:
         for kid in list(self.clients):
             if kid not in kernels:
                 self.drop_client(kid)
+        if dhbw_gpu._scratch is not None:
+            dhbw_gpu._scratch.forget(kernels)
 
         if self.server_load_active():
             self.mark_active(now)

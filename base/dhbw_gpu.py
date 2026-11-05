@@ -6,6 +6,7 @@
 - GET <base>/dhbw-gpu/status: state of the person's GPU kernels (waiting with position in the queue and the latest time a GPU frees up, being prepared, running), for the JupyterLab extension dhbw-gpu-status; "ended" tells why a kernel pod of this server ended on its own (evicted for local storage, past its deadline), from the pod's reason and message the AI service passes on (GET /gpu/kernels/<id>).
 - POST <base>/dhbw-gpu/cancel/<kernel_id>: stop waiting (deletes the kernel pod; the start then fails).
 - Release times (dhbw_release.py, every profile): idle kernels and the idle server end by the project's times; the status tells what is left (server, each kernel) for the warning in the bar, POST <base>/dhbw-gpu/keepalive is "Weiterarbeiten".
+- Local storage (dhbw_scratch.py, every profile with DHBW_SCRATCH_GB): the status tells how much the server's container and each GPU kernel's pod have written outside the home, with a warning level (80, 95) and its text, for JupyterLab and VS Code to warn before the kubelet evicts the pod. A GPU kernel's numbers come with its usage_reply, which dhbw_release asks for.
 """
 import asyncio
 import json
@@ -193,6 +194,7 @@ async def _session_labels(serverapp):
 
 
 _release = None  # dhbw_release.Release while DHBW_RELEASE is set
+_scratch = None  # dhbw_scratch.Scratch: local storage of the server and its GPU kernels
 
 
 class StatusHandler(APIHandler):
@@ -200,9 +202,11 @@ class StatusHandler(APIHandler):
     async def get(self):
         # release: what is left until the server and each kernel go back (dhbw_release), for the warning in the bar; null without release times.
         release = _release.state if _release is not None else None
+        # scratch: the server's local storage outside the home ({used, limit, level, message}; null before the first measurement or without a limit); a GPU kernel's is in its entry.
+        scratch = _scratch.server if _scratch is not None else None
         if os.environ.get("DHBW_KERNELS", "split") != "split":
             # Only the local kernel (profiles "CPU" and "GPU"): no kernel pods to report.
-            self.finish(json.dumps({"idle_timeout": 0, "kernels": [], "ended": [], "release": release}))
+            self.finish(json.dumps({"idle_timeout": 0, "kernels": [], "ended": [], "release": release, "scratch": scratch}))
             return
         labels = await _session_labels(self.serverapp)
         kernels = await asyncio.get_running_loop().run_in_executor(None, collect_status, labels)
@@ -210,9 +214,11 @@ class StatusHandler(APIHandler):
             left = ((release or {}).get("kernels") or {}).get(k["kernel_id"])
             if left:
                 k.update(idle_left=left["idle_left"], idle_warn=left["warn"])
+            if _scratch is not None and k["kernel_id"] in _scratch.kernels and k.get("state") == "running":
+                k["scratch"] = _scratch.kernels[k["kernel_id"]]
         # idle_timeout: after how many seconds without execution a kernel is ended (MappingKernelManager.cull_idle_timeout) — the bar counts down to it where the release times give no idle_left (a hub from before).
         idle = int(getattr(self.serverapp.kernel_manager, "cull_idle_timeout", 0) or 0)
-        self.finish(json.dumps({"idle_timeout": idle, "kernels": kernels, "ended": ended_status(labels), "release": release}))
+        self.finish(json.dumps({"idle_timeout": idle, "kernels": kernels, "ended": ended_status(labels), "release": release, "scratch": scratch}))
 
 
 class KeepaliveHandler(APIHandler):
@@ -366,6 +372,22 @@ def _patch_cleanup(serverapp):
     serverapp.cleanup_kernels = cleanup_kernels
 
 
+def _setup_scratch(serverapp):
+    """Measure the local storage while the server runs (dhbw_scratch); a failure leaves the server without the warning, nothing else."""
+    global _scratch
+    try:
+        import dhbw_scratch
+        from tornado.ioloop import PeriodicCallback
+
+        _scratch = dhbw_scratch.Scratch(serverapp.log)
+        if _scratch.limit:
+            # Every 10 s a look whether the next measurement is due (dhbw_scratch.TICK, longer after a long one); the first one right after the start.
+            PeriodicCallback(lambda: asyncio.ensure_future(_scratch.tick()), 10 * 1000).start()
+        serverapp.log.info("dhbw_scratch: limit %d bytes", _scratch.limit)
+    except Exception as e:  # noqa: BLE001
+        serverapp.log.warning("dhbw_gpu: local storage not measured: %s", e)
+
+
 def _jupyter_server_extension_points():
     return [{"module": "dhbw_gpu"}]
 
@@ -381,6 +403,7 @@ def _load_jupyter_server_extension(serverapp):
         _release = dhbw_release.setup(serverapp)
     except Exception as e:  # noqa: BLE001 - without it JupyterLab's own culler and shutdown remain
         serverapp.log.warning("dhbw_gpu: release times not active: %s", e)
+    _setup_scratch(serverapp)
     base = serverapp.web_app.settings["base_url"]
     serverapp.web_app.add_handlers(".*$", [
         (url_path_join(base, "dhbw-gpu", "status"), StatusHandler),

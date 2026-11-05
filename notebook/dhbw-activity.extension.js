@@ -1,4 +1,4 @@
-// DHBW workspaces: the menu "DHBW" in the status bar, the counterpart of JupyterLab's menu "DHBW" (dhbw-branding in aiaas-deployment), with the same links read from the page config the hub mounts into every workspace. And (aiaas-deployment docs/todo.md app_idle): VS Code's traffic through jupyter-server-proxy tells the server only that its tab is open, not that anyone works (an open tab sends keepalives all the time). This extension reports the person's input instead: typing, moving the cursor, scrolling, switching editors, saving and running a command in a terminal touch a file in DHBW_ACTIVITY_DIR, at most every 30 seconds, which the server's release times count (dhbw_release.py of the bases). It also shows their warning with "Weiterarbeiten", like JupyterLab's status bar.
+// DHBW workspaces: the menu "DHBW" in the status bar, the counterpart of JupyterLab's menu "DHBW" (dhbw-branding in aiaas-deployment), with the same links read from the page config the hub mounts into every workspace. And (aiaas-deployment docs/todo.md app_idle): VS Code's traffic through jupyter-server-proxy tells the server only that its tab is open, not that anyone works (an open tab sends keepalives all the time). This extension reports the person's input instead: typing, moving the cursor, scrolling, switching editors, saving and running a command in a terminal touch a file in DHBW_ACTIVITY_DIR, at most every 30 seconds, which the server's release times count (dhbw_release.py of the bases). It also shows their warning with "Weiterarbeiten", like JupyterLab's status bar. And it warns, like JupyterLab, when the workspace or one of its GPU kernels has filled 80 % (again at 95 %) of its local storage outside the home (dhbw_scratch of the bases), with the text the server gives.
 "use strict";
 const vscode = require("vscode");
 const fs = require("fs");
@@ -75,8 +75,29 @@ function watchRelease(context) {
   if (!s) return;
   let warned = false;
   let endsWarned = false;
+  const scratchShown = new Map(); // "server" or kernel id -> level warned about
+  // Local storage: one message per level reached (80 % a warning, 95 % an error); a level that is over may warn again later.
+  const scratchWarnings = (status) => {
+    const current = new Map();
+    if (status.scratch) current.set("server", { scratch: status.scratch, label: "" });
+    for (const k of status.kernels || []) {
+      if (k.scratch) current.set(k.kernel_id, { scratch: k.scratch, label: `${k.label}: ` });
+    }
+    for (const [key, { scratch, label }] of current) {
+      if ((scratchShown.get(key) || 0) === scratch.level) continue;
+      scratchShown.set(key, scratch.level);
+      if (!scratch.level || !scratch.message) continue;
+      const text = label + scratch.message;
+      if (scratch.level >= 95) vscode.window.showErrorMessage(text);
+      else vscode.window.showWarningMessage(text);
+    }
+    for (const key of [...scratchShown.keys()]) {
+      if (!current.has(key)) scratchShown.delete(key);
+    }
+  };
   const poll = async () => {
     const status = await call(s, "GET", "dhbw-gpu/status");
+    if (status) scratchWarnings(status);
     const r = status && status.release && status.release.server;
     if (!r) return;
     if (r.warn && !warned) {

@@ -2,6 +2,8 @@
 
 ## Unveröffentlicht
 
+- Warnung vor vollem lokalem Speicher: Hat der Workspace oder ein GPU-Kernel 80 % seines lokalen Speichers außerhalb des Homes belegt (Limit `ephemeral-storage`, je Budget einstellbar, Standard 10 GB), sagen JupyterLab und VS Code, wie viel belegt ist, wo die Grenze liegt und wie Platz frei wird; ab 95 % erneut als Fehlermeldung, bevor Kubernetes den Pod räumt. Gemessen wird wie beim Kubelet: die beschreibbare Schicht des Containers (`/tmp`, mit pip oder conda in die Umgebung installierte Pakete) und `emptyDir`-Volumes, ein Home ohne Workspace-Speicher eingeschlossen; im Server jede Minute, im GPU-Kernel-Pod in einem eigenen Prozess, der nicht als Aktivität des Kernels zählt (neues Modul `dhbw_scratch`). Das Limit kommt aus `DHBW_SCRATCH_GB` (Hub, KI-Dienst); ohne die Variable bleibt der Server ohne Warnung, ein GPU-Kernel nutzt dann das Limit des Servers. Ein GPU-Kernel wird dafür auch während einer Rechnung nach seiner `usage_reply` gefragt. JupyterLab-Erweiterung `dhbw-gpu-status` 0.5.0, VS-Code-Erweiterung `dhbw.activity` 1.2.0.
+
 ## v2.7.4 – 2026-11-05
 
 - Endet ein GPU-Kernel von selbst, nennt JupyterLab den Grund in einer Meldung (und beim Start im Fehlerdialog): geräumt, weil er außerhalb des Homes mehr lokalen Speicher belegt hat als erlaubt (mit Hinweis, dass große Pakete in die Umgebung des Projekts gehören), weil auf dem Knoten Speicher knapp wurde, oder weil die Obergrenze des Projekts erreicht war. Braucht den KI-Dienst, der für einen beendeten Kernel-Pod dessen Grund liefert.

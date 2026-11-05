@@ -2,8 +2,8 @@
   "name": "activity",
   "publisher": "dhbw",
   "displayName": "DHBW Workspaces",
-  "description": "DHBW-Menü in der Statusleiste, Eingaben für die Rückgabezeiten des Workspaces und deren Warnung.",
-  "version": "1.1.0",
+  "description": "DHBW-Menü in der Statusleiste, Eingaben für die Rückgabezeiten des Workspaces und deren Warnung, Warnung vor vollem lokalem Speicher.",
+  "version": "1.2.0",
   "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"

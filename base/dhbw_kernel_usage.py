@@ -1,6 +1,8 @@
 """Kernel side of the DHBW release times (dhbw_release.py, aiaas-deployment docs/todo.md idle_release): the kernel's usage_reply (control channel, which ipykernel answers while a cell computes) also tells the utilisation of the GPU the kernel's pod holds, so that a training in a background thread counts as activity although the kernel shows "idle". Installed from /etc/ipython/ipython_kernel_config.py, for every kernel; a kernel without a GPU answers as before.
 
 The GPU's utilisation comes from nvidia-smi in the kernel's own container, not from DCGM: it works on every GPU the pod gets (vGPU guests, passthrough, GB10, nvproxy under gVisor), needs no metrics pipeline (Prometheus in the AI cluster only forwards) and no network, and the pod has its GPU to itself.
+
+In a GPU kernel pod the reply also tells its local storage outside the home (dhbw_scratch.kernel_usage: scratch_used, scratch_limit, scratch_home), for the warning in JupyterLab before the kubelet evicts the pod.
 """
 import shutil
 import subprocess
@@ -30,8 +32,18 @@ def gpu_usage():
     return {"gpu_util": max(values)} if values else {}
 
 
+def scratch_usage():
+    """The GPU kernel pod's local storage (dhbw_scratch), {} elsewhere or on any failure."""
+    try:
+        import dhbw_scratch
+
+        return dhbw_scratch.kernel_usage()
+    except Exception:  # noqa: BLE001 - the usage reply must not fail for it
+        return {}
+
+
 def install():
-    """Wraps ipykernel's usage_request: the reply it sends gets gpu_util added. Only the usage_reply is touched, whichever thread sends what else at the same time."""
+    """Wraps ipykernel's usage_request: the reply it sends gets gpu_util and the scratch numbers added. Only the usage_reply is touched, whichever thread sends what else at the same time."""
     from ipykernel.kernelbase import Kernel
 
     original = getattr(Kernel, "usage_request", None)
@@ -44,7 +56,7 @@ def install():
 
         def send_with_gpu(stream_, msg_or_type, content=None, *args, **kwargs):
             if msg_or_type == "usage_reply" and isinstance(content, dict):
-                content = {**content, **gpu_usage()}
+                content = {**content, **gpu_usage(), **scratch_usage()}
             return send(stream_, msg_or_type, content, *args, **kwargs)
 
         session.send = send_with_gpu
