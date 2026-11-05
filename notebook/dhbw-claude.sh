@@ -31,5 +31,8 @@ fi
 # A person's own Claude subscription: after /login its credentials are in ~/.claude/.credentials.json, and the gateway's variables would override them (ANTHROPIC_AUTH_TOKEN before the login, our model names unknown at Anthropic), so they go. DHBW_CLAUDE=abo starts without them for the first /login; /logout deletes the credentials and returns to the DHBW models. The login is per project, like the home it lives in.
 if [ "${DHBW_CLAUDE:-}" = "abo" ] || [ -s "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.credentials.json" ]; then
   unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_MODEL ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_MAX_CONTEXT_TOKENS CLAUDE_CODE_MAX_OUTPUT_TOKENS CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS
+elif [ -z "${ANTHROPIC_BASE_URL:-}" ]; then
+  # A workspace without LLM key (without LLM chosen at the start or set for the project, or no LLM project to draw from): Claude Code would only offer Anthropic's login, so say why the DHBW models are missing.
+  echo "Dieser Workspace hat keinen LLM-Schlüssel (ohne LLM gestartet oder kein LLM-Projekt verfügbar), die DHBW-Modelle stehen daher nicht zur Verfügung. Mit einem LLM-Projekt neu starten (Workspace starten, Auswahl „LLM im Workspace“) oder mit /login ein eigenes Claude-Abo nutzen." >&2
 fi
 exec "$DIR/claude" "$@"
