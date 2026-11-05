@@ -2,7 +2,10 @@
 
 ## Unveröffentlicht
 
+## v2.7.4 – 2026-11-05
+
 - Endet ein GPU-Kernel von selbst, nennt JupyterLab den Grund in einer Meldung (und beim Start im Fehlerdialog): geräumt, weil er außerhalb des Homes mehr lokalen Speicher belegt hat als erlaubt (mit Hinweis, dass große Pakete in die Umgebung des Projekts gehören), weil auf dem Knoten Speicher knapp wurde, oder weil die Obergrenze des Projekts erreicht war. Braucht den KI-Dienst, der für einen beendeten Kernel-Pod dessen Grund liefert.
+- `claude` sagt in einem Workspace ohne LLM-Schlüssel (ohne LLM gestartet oder kein LLM-Projekt), warum die DHBW-Modelle fehlen, und wie es mit einem LLM-Projekt oder dem eigenen Abo weitergeht.
 
 ## v2.7.3 – 2026-11-02
 
