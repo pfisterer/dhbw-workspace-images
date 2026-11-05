@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.7.7 – 2026-11-05
+
+- `dhbw-cloud` 0.2.77: `dhbw-cloud job submit --files` lädt Dateien und Ordner vor dem Start ins Home oder nach `~/project-shared` (Ziel `jobs/<Name>` oder `--workdir`), `dhbw-cloud job upload --to` lädt ohne Job hoch, `dhbw-cloud job watch` verfolgt einen Job bis zum Ende, `status`, `log`, `cancel` und `watch` nehmen ohne ID den zuletzt abgeschickten Job, `--preemptible` schickt einen Job freiwillig verdrängbar ab, und eine letzte Ausgabezeile `RESULT …` erscheint als Ergebnis des Jobs.
+
 ## v2.7.6 – 2026-11-05
 
 - `dhbw-cloud` 0.2.73: im Workspace ohne eigenes Token angemeldet (es nimmt das Token des Workspace-Servers; ein gesetztes `DHBW_CLOUD_TOKEN` geht vor), `dhbw-cloud logout`, `dhbw-cloud job files` und `dhbw-cloud job get` holen die Dateien eines Jobs, `--llm-project` wählt das LLM-Projekt eines Jobs.
