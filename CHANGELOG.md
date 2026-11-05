@@ -1,5 +1,9 @@
 # Changelog
 
+## Unveröffentlicht
+
+- Endet ein GPU-Kernel von selbst, nennt JupyterLab den Grund in einer Meldung (und beim Start im Fehlerdialog): geräumt, weil er außerhalb des Homes mehr lokalen Speicher belegt hat als erlaubt (mit Hinweis, dass große Pakete in die Umgebung des Projekts gehören), weil auf dem Knoten Speicher knapp wurde, oder weil die Obergrenze des Projekts erreicht war. Braucht den KI-Dienst, der für einen beendeten Kernel-Pod dessen Grund liefert.
+
 ## v2.7.3 – 2026-11-02
 
 - Batch-Jobs: papermill (Notebooks als Job) und `dhbw-cloud` (`dhbw-cloud job submit -- …`; Projekt und Adresse setzt der Hub über `DHBW_PROJECT` und `DHBW_CLOUD_URL`).

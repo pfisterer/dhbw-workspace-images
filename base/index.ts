@@ -1,4 +1,4 @@
-// DHBW GPU platform: makes GPU kernels visible, and warns before the project's release times end the workspace or a GPU kernel (dhbw_release in the server extension). Polls the server extension dhbw_gpu (<base>/dhbw-gpu/status) every 5 s; a waiting or starting GPU kernel gets a notification with its position in the queue and a button to stop waiting. While a GPU kernel holds the GPU, the top bar shows a pulsing red dot with the time until an idle kernel is ended and a button „Jetzt freigeben“ that ends it without asking, which frees the GPU at once; a click on the text ends it after asking. A start refused by the quota is reported by JupyterLab itself (error dialog with the server's message). Release times: shortly before the workspace or a GPU kernel goes back for lack of activity, a warning with „Weiterarbeiten“ (counts as activity); shortly before the project's upper bound ends the workspace or a GPU kernel, a notice with the time.
+// DHBW GPU platform: makes GPU kernels visible, and warns before the project's release times end the workspace or a GPU kernel (dhbw_release in the server extension). Polls the server extension dhbw_gpu (<base>/dhbw-gpu/status) every 5 s; a waiting or starting GPU kernel gets a notification with its position in the queue and a button to stop waiting. While a GPU kernel holds the GPU, the top bar shows a pulsing red dot with the time until an idle kernel is ended and a button „Jetzt freigeben“ that ends it without asking, which frees the GPU at once; a click on the text ends it after asking. A start refused by the quota is reported by JupyterLab itself (error dialog with the server's message). Release times: shortly before the workspace or a GPU kernel goes back for lack of activity, a warning with „Weiterarbeiten“ (counts as activity); shortly before the project's upper bound ends the workspace or a GPU kernel, a notice with the time. A GPU kernel whose pod ended on its own (evicted for local storage, past the upper bound) gets an error notification with the reason, once.
 import { JupyterFrontEnd, JupyterFrontEndPlugin } from '@jupyterlab/application';
 import { Dialog, Notification, showDialog } from '@jupyterlab/apputils';
 import { URLExt } from '@jupyterlab/coreutils';
@@ -25,9 +25,18 @@ interface IServerRelease {
   ends_soon?: boolean;
 }
 
+// A GPU kernel of this server whose pod ended on its own, and why (dhbw_gpu.ended_text).
+interface IKernelEnded {
+  kernel_id: string;
+  label: string;
+  at: number;
+  message: string;
+}
+
 interface IStatus {
   idle_timeout?: number;
   kernels: IKernelStatus[];
+  ended?: IKernelEnded[];
   release?: { server: IServerRelease } | null;
 }
 
@@ -134,6 +143,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
     };
 
     const notifications = new Map<string, string>(); // kernel id -> notification id
+    const endedShown = new Set<string>(); // "kernel id@at" of the ends already reported
     const shown = new Map<string, string>(); // kernel id -> last message shown
 
     const cancel = async (kernelId: string) => {
@@ -181,6 +191,14 @@ const plugin: JupyterFrontEndPlugin<void> = {
       for (const kernelId of [...shown.keys()]) {
         if (!current.has(kernelId)) {
           shown.delete(kernelId);
+        }
+      }
+
+      for (const e of status.ended ?? []) {
+        const key = `${e.kernel_id}@${e.at}`;
+        if (!endedShown.has(key)) {
+          endedShown.add(key);
+          Notification.error(`${e.label}: ${e.message}`, { autoClose: false });
         }
       }
 

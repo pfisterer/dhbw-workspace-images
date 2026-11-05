@@ -3,13 +3,15 @@
 - The kernel pods are created by the AI service (llm-management-api), not by this server: gateway_provisioners' KubernetesProvisioner asks it to start, poll and stop the kernel (DHBW_GPU_API, authenticated with this server's own hub token). The server has no rights in Kubernetes; the AI service builds the pod from this server's pod (image, home, project) and checks the project's limits and budgets (one GPU per person and the like) before it starts one. A refusal comes back as the reason JupyterLab shows.
 - Starts remote GPU kernels in the notebook's directory (jupyter_server passes it as cwd).
 - One session per notebook while its kernel starts (_patch_sessions).
-- GET <base>/dhbw-gpu/status: state of the person's GPU kernels (waiting with position in the queue and the latest time a GPU frees up, being prepared, running), for the JupyterLab extension dhbw-gpu-status.
+- GET <base>/dhbw-gpu/status: state of the person's GPU kernels (waiting with position in the queue and the latest time a GPU frees up, being prepared, running), for the JupyterLab extension dhbw-gpu-status; "ended" tells why a kernel pod of this server ended on its own (evicted for local storage, past its deadline), from the pod's reason and message the AI service passes on (GET /gpu/kernels/<id>).
 - POST <base>/dhbw-gpu/cancel/<kernel_id>: stop waiting (deletes the kernel pod; the start then fails).
 - Release times (dhbw_release.py, every profile): idle kernels and the idle server end by the project's times; the status tells what is left (server, each kernel) for the warning in the bar, POST <base>/dhbw-gpu/keepalive is "Weiterarbeiten".
 """
 import asyncio
 import json
 import os
+import re
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -28,6 +30,8 @@ _kernel_dirs = {}  # kernel_id -> directory the kernel was started in (pending k
 _cancelled = set()  # kernel ids whose wait was stopped through /dhbw-gpu/cancel
 _stop_reasons = {}  # kernel_id -> why it is ended (idle, cancel, timeout), sent with the deletion for the AI service's research log; a kernel without one was ended by the person
 _server_stopping = False  # the server ends all its kernels on its way down (hub, culler, release times): the deletion goes without a reason
+_ended = {}  # kernel_id -> {"pod", "at", "message"}: why its last pod ended on its own, shown in the status for ENDED_SHOW seconds
+ENDED_SHOW = 15 * 60
 
 
 class GpuKernelError(web.HTTPError):
@@ -112,6 +116,50 @@ def collect_status(labels):
     return result
 
 
+def _gb(quantity):
+    """ "10Gi" -> "10 GB", as the self-service shows the local storage; anything else as it is."""
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)Gi", quantity)
+    return f"{m.group(1)} GB" if m else quantity
+
+
+def ended_text(pod):
+    """Why a kernel pod ended on its own, for people; pod is the AI service's answer for one kernel (phase failed or succeeded, reason and message as Kubernetes gives them: status.reason, status.message). The kubelet evicts a pod that writes more than its local storage outside the home ("Pod ephemeral local storage usage exceeds the total limit of containers 10Gi.", "Container … exceeded its local ephemeral storage limit \"10Gi\".") or when its node runs short ("The node was low on resource: ephemeral-storage. …"); a pod past its upper bound ends with DeadlineExceeded. "" without a reason (the kernel process exited)."""
+    reason = pod.get("reason") or ""
+    message = " ".join((pod.get("message") or "").split())
+    lost = "Variablen sind verloren, Dateien im Home bleiben."
+    if reason == "Evicted":
+        low = re.search(r"node was low on resource: ([\w-]+)", message)
+        if low:
+            what = {"ephemeral-storage": "der lokale Speicher", "memory": "der Arbeitsspeicher"}.get(low.group(1), low.group(1))
+            return f"Der GPU-Kernel wurde beendet, weil auf seinem Knoten {what} knapp wurde. {lost}"
+        if "ephemeral" in message or "EmptyDir" in message:
+            limit = re.search(r"limit(?: of containers)? \"?(\d[\w.]*?)\"?\.?$", message)
+            allowed = f" ({_gb(limit.group(1))})" if limit else ""
+            return f"Der GPU-Kernel wurde beendet, weil er außerhalb des Homes mehr lokalen Speicher belegt hat als erlaubt{allowed}, etwa durch mit pip oder conda installierte Pakete oder Dateien in /tmp. Große Pakete gehören in die Umgebung des Projekts, Daten ins Home. {lost}"
+    if reason == "DeadlineExceeded":
+        return f"Der GPU-Kernel wurde beendet, weil er die Obergrenze des Projekts erreicht hat. Lange Rechnungen gehören in einen GPU-Job. {lost}"
+    if reason:
+        return f"Der GPU-Kernel wurde beendet ({reason}{': ' + message if message else ''}). {lost}"
+    return ""
+
+
+def remember_end(kernel_id, pod):
+    """Keep why the kernel's pod ended for the status, once per pod; True the first time."""
+    text = ended_text(pod)
+    if not text or (_ended.get(kernel_id) or {}).get("pod") == pod.get("name"):
+        return False
+    _ended[kernel_id] = {"pod": pod.get("name"), "at": time.time(), "message": text}
+    return True
+
+
+def ended_status(labels):
+    """The kernels of this server that ended on their own in the last ENDED_SHOW seconds, for a notification each."""
+    now = time.time()
+    for kid in [k for k, e in _ended.items() if now - e["at"] > ENDED_SHOW]:
+        del _ended[kid]
+    return [{"kernel_id": kid, "label": labels.get(kid) or "GPU-Kernel", "at": int(e["at"]), "message": e["message"]} for kid, e in _ended.items()]
+
+
 def mark_stop(kernel_id, reason):
     """Remember why the kernel is about to end (idle, cancel, timeout); the deletion that follows sends it."""
     _stop_reasons[kernel_id] = reason
@@ -154,7 +202,7 @@ class StatusHandler(APIHandler):
         release = _release.state if _release is not None else None
         if os.environ.get("DHBW_KERNELS", "split") != "split":
             # Only the local kernel (profiles "CPU" and "GPU"): no kernel pods to report.
-            self.finish(json.dumps({"idle_timeout": 0, "kernels": [], "release": release}))
+            self.finish(json.dumps({"idle_timeout": 0, "kernels": [], "ended": [], "release": release}))
             return
         labels = await _session_labels(self.serverapp)
         kernels = await asyncio.get_running_loop().run_in_executor(None, collect_status, labels)
@@ -164,7 +212,7 @@ class StatusHandler(APIHandler):
                 k.update(idle_left=left["idle_left"], idle_warn=left["warn"])
         # idle_timeout: after how many seconds without execution a kernel is ended (MappingKernelManager.cull_idle_timeout) — the bar counts down to it where the release times give no idle_left (a hub from before).
         idle = int(getattr(self.serverapp.kernel_manager, "cull_idle_timeout", 0) or 0)
-        self.finish(json.dumps({"idle_timeout": idle, "kernels": kernels, "release": release}))
+        self.finish(json.dumps({"idle_timeout": idle, "kernels": kernels, "ended": ended_status(labels), "release": release}))
 
 
 class KeepaliveHandler(APIHandler):
@@ -240,12 +288,17 @@ def _patch_provisioner(serverapp):
         return self.connection_info
 
     def get_container_status(self, iteration):
-        # While a kernel starts, gateway_provisioners keeps waiting (up to GP_LAUNCH_TIMEOUT) when its pod is gone. End the start at once instead, with a message JupyterLab shows: the wait was stopped, or the pod vanished (deleted, evicted).
+        # While a kernel starts, gateway_provisioners keeps waiting (up to GP_LAUNCH_TIMEOUT) when its pod is gone. End the start at once instead, with a message JupyterLab shows: the wait was stopped, the pod ended (with its reason, e.g. evicted) or vanished (deleted). A running kernel whose pod ended (poll, iteration None) is dead for gateway_provisioners like one without a pod; why it ended goes into the status for JupyterLab's notification.
         code, pod = _api("GET", f"/gpu/kernels/{self.kernel_id}")
         status = ""
         if code == 200 and pod:
             self.container_name = pod.get("name") or self.container_name
             status = pod.get("phase") or ""
+            if status in ("failed", "succeeded"):
+                if iteration:
+                    raise GpuKernelError(ended_text(pod) or "Der GPU-Kernel wurde beim Start beendet. Bitte den Kernel neu starten.")
+                if remember_end(self.kernel_id, pod):
+                    self.log.warning("dhbw_gpu: GPU kernel %s ended: %s %s", self.kernel_id, pod.get("reason"), pod.get("message"))
             if status == "running" and not self.assigned_host and pod.get("pod_ip"):
                 self.assigned_ip = pod["pod_ip"]
                 self.assigned_host = self.container_name
